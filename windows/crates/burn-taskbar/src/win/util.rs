@@ -32,7 +32,7 @@ static START: OnceLock<Instant> = OnceLock::new();
 
 pub fn log_path() -> PathBuf {
     let base = std::env::var_os("LOCALAPPDATA").map(PathBuf::from).unwrap_or_else(std::env::temp_dir);
-    base.join("Burn").join("spike.log")
+    base.join("Burn").join("burn.log")
 }
 
 pub fn init_log() {

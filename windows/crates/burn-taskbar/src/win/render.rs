@@ -19,8 +19,7 @@ use windows::Win32::Graphics::Direct2D::{
 use windows::Win32::Graphics::DirectWrite::{
     DWRITE_FACTORY_TYPE_SHARED, DWRITE_FONT_FEATURE, DWRITE_FONT_FEATURE_TAG_TABULAR_FIGURES,
     DWRITE_FONT_STRETCH_NORMAL, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_WEIGHT, DWRITE_FONT_WEIGHT_MEDIUM,
-    DWRITE_FONT_WEIGHT_REGULAR, DWRITE_FONT_WEIGHT_SEMI_BOLD, DWRITE_TEXT_METRICS, DWRITE_TEXT_RANGE,
-    DWriteCreateFactory, IDWriteFactory, IDWriteTextFormat, IDWriteTextLayout,
+    DWRITE_TEXT_METRICS, DWRITE_TEXT_RANGE, DWriteCreateFactory, IDWriteFactory, IDWriteTextFormat, IDWriteTextLayout,
 };
 use windows::Win32::Graphics::Dxgi::Common::DXGI_FORMAT_B8G8R8A8_UNORM;
 use windows::Win32::Graphics::Gdi::{
@@ -30,7 +29,7 @@ use windows::Win32::Graphics::Gdi::{
 use windows::core::{BOOL, PCWSTR, Result, w};
 use windows_numerics::Vector2;
 
-use crate::model::{Entry, Level, Provider, label, remaining, reset};
+use crate::model::{Entry, Level, Provider, label};
 
 // ---- Colours ---------------------------------------------------------------------------
 
@@ -40,9 +39,6 @@ pub struct Rgba(pub f32, pub f32, pub f32, pub f32);
 impl Rgba {
     const fn hex(v: u32) -> Rgba {
         Rgba(((v >> 16) & 0xff) as f32 / 255.0, ((v >> 8) & 0xff) as f32 / 255.0, (v & 0xff) as f32 / 255.0, 1.0)
-    }
-    fn alpha(self, a: f32) -> Rgba {
-        Rgba(self.0, self.1, self.2, self.3 * a)
     }
     fn d2d(self) -> D2D1_COLOR_F {
         D2D1_COLOR_F { r: self.0, g: self.1, b: self.2, a: self.3 }
@@ -55,12 +51,9 @@ impl Rgba {
 
 pub struct Palette {
     pub text: Rgba,
-    pub muted: Rgba,
     pub warn: Rgba,
     pub full: Rgba,
     pub hover: Rgba,
-    pub track: Rgba,
-    pub panel: Rgba,
 }
 
 impl Palette {
@@ -68,22 +61,16 @@ impl Palette {
         if light {
             Palette {
                 text: Rgba::hex(0x1a1a1a),
-                muted: Rgba::hex(0x1a1a1a).alpha(0.62),
                 warn: Rgba::hex(0xb65400),
                 full: Rgba::hex(0xc42b1c),
                 hover: Rgba(0.0, 0.0, 0.0, 0.05),
-                track: Rgba(0.0, 0.0, 0.0, 0.10),
-                panel: Rgba::hex(0xf3f3f3),
             }
         } else {
             Palette {
                 text: Rgba::hex(0xffffff),
-                muted: Rgba::hex(0xffffff).alpha(0.62),
                 warn: Rgba::hex(0xff9f0a),
                 full: Rgba::hex(0xff5a4f),
                 hover: Rgba(1.0, 1.0, 1.0, 0.07),
-                track: Rgba(1.0, 1.0, 1.0, 0.12),
-                panel: Rgba::hex(0x202020),
             }
         }
     }
@@ -93,15 +80,6 @@ impl Palette {
             Level::Normal => self.text,
             Level::Warn => self.warn,
             Level::Full => self.full,
-        }
-    }
-
-    /// Brand tint for bars, as on the Mac.
-    fn tint(&self, provider: Provider) -> Rgba {
-        match provider {
-            Provider::Claude => Rgba::hex(0xd97757),
-            Provider::Codex => self.text.alpha(0.8),
-            Provider::Cursor => Rgba::hex(0xa5b0ff),
         }
     }
 }
@@ -332,84 +310,6 @@ impl Painter {
             Ok(rt)
         }
     }
-
-    pub fn d2d(&self) -> &ID2D1Factory {
-        &self.d2d
-    }
-
-    /// Placeholder panel content: one row per provider with what's left, a bar and the reset.
-    /// Returns nothing; the caller owns BeginDraw/EndDraw.
-    pub fn panel(
-        &self,
-        rt: &ID2D1RenderTarget,
-        entries: &[Entry],
-        light: bool,
-        width: f32,
-        scale: f32,
-        clear: Option<Rgba>,
-    ) -> Result<()> {
-        let palette = Palette::new(light);
-        unsafe {
-            rt.SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
-            rt.Clear(Some(&clear.unwrap_or(Rgba(0.0, 0.0, 0.0, 0.0)).d2d()));
-            let mut y = PANEL_PAD;
-            for entry in entries {
-                let level = Level::from_used(entry.used);
-                draw_logo(rt, entry.provider, palette.text, PANEL_PAD, y + 1.0, 16.0, scale);
-                let name = self.layout(entry.provider.name(), 13.0, DWRITE_FONT_WEIGHT_SEMI_BOLD, false)?;
-                let text = rt.CreateSolidColorBrush(&palette.text.d2d(), None)?;
-                rt.DrawTextLayout(Vector2 { X: PANEL_PAD + 24.0, Y: y }, &name, &text, D2D1_DRAW_TEXT_OPTIONS_NONE);
-
-                let value =
-                    self.layout(&format!("{} left", remaining(entry.used)), 13.0, DWRITE_FONT_WEIGHT_REGULAR, true)?;
-                let vm = metrics(&value)?;
-                let value_brush = rt.CreateSolidColorBrush(&palette.level(level).d2d(), None)?;
-                rt.DrawTextLayout(
-                    Vector2 { X: width - PANEL_PAD - vm.widthIncludingTrailingWhitespace, Y: y },
-                    &value,
-                    &value_brush,
-                    D2D1_DRAW_TEXT_OPTIONS_NONE,
-                );
-
-                let bar_top = y + 26.0;
-                let track =
-                    D2D_RECT_F { left: PANEL_PAD, top: bar_top, right: width - PANEL_PAD, bottom: bar_top + 4.0 };
-                let track_brush = rt.CreateSolidColorBrush(&palette.track.d2d(), None)?;
-                rt.FillRoundedRectangle(&D2D1_ROUNDED_RECT { rect: track, radiusX: 2.0, radiusY: 2.0 }, &track_brush);
-                let left = ((100.0 - entry.used) / 100.0).clamp(0.0, 1.0) as f32;
-                if left > 0.0 {
-                    let fill = D2D_RECT_F { right: track.left + (track.right - track.left) * left, ..track };
-                    let color =
-                        if level == Level::Normal { palette.tint(entry.provider) } else { palette.level(level) };
-                    let fill_brush = rt.CreateSolidColorBrush(&color.d2d(), None)?;
-                    rt.FillRoundedRectangle(&D2D1_ROUNDED_RECT { rect: fill, radiusX: 2.0, radiusY: 2.0 }, &fill_brush);
-                }
-
-                if let Some(secs) = entry.resets_in {
-                    let note =
-                        self.layout(&format!("Resets in {}", reset(secs)), 11.5, DWRITE_FONT_WEIGHT_REGULAR, true)?;
-                    let muted = rt.CreateSolidColorBrush(&palette.muted.d2d(), None)?;
-                    rt.DrawTextLayout(
-                        Vector2 { X: PANEL_PAD, Y: bar_top + 10.0 },
-                        &note,
-                        &muted,
-                        D2D1_DRAW_TEXT_OPTIONS_NONE,
-                    );
-                }
-                y += PANEL_ROW + PANEL_ROW_GAP;
-            }
-        }
-        Ok(())
-    }
-}
-
-pub const PANEL_WIDTH: f32 = 320.0;
-const PANEL_PAD: f32 = 16.0;
-const PANEL_ROW: f32 = 54.0;
-const PANEL_ROW_GAP: f32 = 14.0;
-
-pub fn panel_height(rows: usize) -> f32 {
-    2.0 * PANEL_PAD + rows as f32 * PANEL_ROW + rows.saturating_sub(1) as f32 * PANEL_ROW_GAP
 }
 
 fn metrics(layout: &IDWriteTextLayout) -> Result<DWRITE_TEXT_METRICS> {

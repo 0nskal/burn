@@ -90,17 +90,6 @@ pub fn label(entry: &Entry) -> String {
     text
 }
 
-/// Fixed sets the spike cycles through, so width changes and every colour can be checked.
-pub fn demo_sets() -> Vec<Vec<Entry>> {
-    use Provider::*;
-    let e = |provider, used, resets_in| Entry { provider, used, resets_in: Some(resets_in) };
-    vec![
-        vec![e(Claude, 42.0, 7_800), e(Codex, 88.0, 2_400), e(Cursor, 30.0, 950_000)],
-        vec![e(Claude, 100.0, 7_800), e(Codex, 50.0, 14_000), e(Cursor, 96.0, 950_000)],
-        vec![e(Claude, 7.0, 16_000)],
-    ]
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

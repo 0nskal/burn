@@ -1,10 +1,9 @@
-//! The Windows shell of the spike. One UI thread owns every window, including the widget
-//! that lives inside Explorer's taskbar: that window's input queue is shared with
-//! Explorer, so nothing on this thread may block.
+//! The Windows side: the widget inside Explorer's taskbar and the tray icon fallback.
 
-mod app;
 mod render;
+mod shell;
 mod taskbar;
 mod util;
 
-pub use app::run;
+pub use shell::{Anchor, Host, current_anchor, set_entries, set_tray_only, shutdown, start};
+pub use util::{init_log, light_taskbar, log_path, os_description, write_log};
