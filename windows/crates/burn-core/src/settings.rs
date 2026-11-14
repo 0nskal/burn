@@ -139,6 +139,11 @@ impl Settings {
         self.widget_windows.get(&p).map_or_else(|| default_window(p), String::as_str)
     }
 
+    /// Every window the widget shows for `p`: the setting may list several, comma-separated.
+    pub fn widget_window_list(&self, p: ProviderId) -> Vec<&str> {
+        self.widget_window(p).split(',').map(str::trim).filter(|s| !s.is_empty()).collect()
+    }
+
     pub fn card_window(&self, p: ProviderId) -> &str {
         self.card_windows.get(&p).map_or_else(|| default_window(p), String::as_str)
     }
@@ -182,6 +187,9 @@ mod tests {
         assert_eq!(s.shelf_retention_days, 7);
         assert_eq!(s.provider_order, vec![ProviderId::Cursor, ProviderId::Claude, ProviderId::Codex]);
         assert_eq!(s.widget_window(ProviderId::Claude), "5h");
+        let mut both = s.clone();
+        both.widget_windows.insert(ProviderId::Claude, "5h, week".into());
+        assert_eq!(both.widget_window_list(ProviderId::Claude), ["5h", "week"]);
         assert_eq!(s.card_window(ProviderId::Codex), HIGHEST);
     }
 

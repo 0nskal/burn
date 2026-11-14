@@ -79,6 +79,8 @@ pub struct WidgetEntry {
     pub provider: ProviderId,
     pub used: f64,
     pub resets_at: Option<i64>,
+    /// False for a provider's second and later windows, drawn after the first without a logo.
+    pub logo: bool,
 }
 
 struct State {
@@ -315,10 +317,29 @@ impl Model {
         snap.connected
             .iter()
             .filter(|p| snap.settings.shows_in_widget(**p))
-            .filter_map(|p| {
-                let limits = snap.limits.get(p)?.limits()?;
-                let w = pick_window(snap.settings.widget_window(*p), limits)?;
-                Some(WidgetEntry { provider: *p, used: w.percent, resets_at: w.resets_at })
+            .flat_map(|p| {
+                let Some(limits) = snap.limits.get(p).and_then(|l| l.limits()) else {
+                    return Vec::new();
+                };
+                let mut shown: Vec<&burn_core::LimitWindow> = Vec::new();
+                for choice in snap.settings.widget_window_list(*p) {
+                    // `all`: every window the provider reports, in its own order.
+                    let picked: Vec<&burn_core::LimitWindow> = if choice == "all" {
+                        limits.windows.iter().collect()
+                    } else {
+                        pick_window(choice, limits).into_iter().collect()
+                    };
+                    for w in picked {
+                        if !shown.iter().any(|s| s.id == w.id) {
+                            shown.push(w);
+                        }
+                    }
+                }
+                shown
+                    .iter()
+                    .enumerate()
+                    .map(|(i, w)| WidgetEntry { provider: *p, used: w.percent, resets_at: w.resets_at, logo: i == 0 })
+                    .collect()
             })
             .collect()
     }
