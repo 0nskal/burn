@@ -24,17 +24,17 @@ fn read_credentials(paths: &Paths) -> Option<String> {
 }
 
 pub fn is_connected(paths: &Paths) -> bool {
-    if paths.claude_credentials().is_file() {
-        return true;
-    }
-    #[cfg(target_os = "macos")]
-    {
-        http::keychain_item_exists(SERVICE, None)
-    }
-    #[cfg(not(target_os = "macos"))]
-    {
-        false
-    }
+    paths.claude_credentials().is_file() || keychain_item_exists()
+}
+
+#[cfg(target_os = "macos")]
+fn keychain_item_exists() -> bool {
+    http::keychain_item_exists(SERVICE, None)
+}
+
+#[cfg(not(target_os = "macos"))]
+fn keychain_item_exists() -> bool {
+    false
 }
 
 pub fn fetch(paths: &Paths) -> Result<ProviderLimits, LimitsError> {
