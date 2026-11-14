@@ -1,0 +1,2 @@
+# Fixtures are compared byte for byte (paths, line ends) with output of the Mac app.
+crates/burn-core/tests/fixtures/** -text
