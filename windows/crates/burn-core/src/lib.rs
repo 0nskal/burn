@@ -8,6 +8,7 @@ pub mod model;
 pub mod parsers;
 pub mod paths;
 pub mod rates;
+pub mod settings;
 pub mod store;
 pub mod tier;
 mod util;
