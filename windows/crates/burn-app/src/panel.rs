@@ -14,6 +14,9 @@ pub const LABEL: &str = "panel";
 const GAP: f64 = 2.0;
 /// A click on the widget right after the panel lost focus to it must not reopen it.
 const REOPEN_GUARD: Duration = Duration::from_millis(300);
+/// Hidden this long, the webview is suspended (its renderer frees memory and stops running scripts).
+#[cfg(windows)]
+const SUSPEND_AFTER: Duration = Duration::from_secs(180);
 
 /// Where the panel hangs, in screen pixels.
 #[derive(Clone, Copy, Debug)]
@@ -31,6 +34,8 @@ struct PanelState {
     placement: Option<Placement>,
     /// Content size in CSS pixels, as the page last reported it.
     size: Option<(f64, f64)>,
+    /// Counts hides, so a pending suspend knows the panel was opened in between.
+    hides: u64,
 }
 
 pub struct Panel {
@@ -65,6 +70,8 @@ impl Panel {
             s.visible = true;
         }
         self.place(&window);
+        #[cfg(windows)]
+        set_webview_active(&window, true);
         let _ = window.show();
         if let Err(e) = window.set_focus() {
             crate::log!("focusing the panel failed: {e}");
@@ -83,9 +90,12 @@ impl Panel {
             }
             s.visible = false;
             s.hidden_at = Some(Instant::now());
+            s.hides += 1;
         }
         if let Some(window) = app.get_webview_window(LABEL) {
             let _ = window.hide();
+            #[cfg(windows)]
+            self.suspend_later(app);
         }
         let _ = app.emit_to(LABEL, "panel-hidden", ());
     }
@@ -102,6 +112,21 @@ impl Panel {
         if let Some(window) = app.get_webview_window(LABEL) {
             self.place(&window);
         }
+    }
+
+    /// Suspends the webview once it has stayed hidden for `SUSPEND_AFTER`.
+    #[cfg(windows)]
+    fn suspend_later(&self, app: &AppHandle) {
+        let hides = self.state.lock().map(|s| s.hides).unwrap_or(0);
+        let app = app.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(SUSPEND_AFTER);
+            let panel = app.state::<Panel>();
+            let still_hidden = panel.state.lock().map(|s| !s.visible && s.hides == hides).unwrap_or(false);
+            if still_hidden && let Some(window) = app.get_webview_window(LABEL) {
+                set_webview_active(&window, false);
+            }
+        });
     }
 
     /// Sizes and positions the window from the last placement and content size.
@@ -121,4 +146,25 @@ impl Panel {
         let _ = window.set_size(PhysicalSize::new(rect.width() as u32, rect.height() as u32));
         let _ = window.set_position(PhysicalPosition::new(rect.left, rect.top));
     }
+}
+
+/// Wakes the webview before the panel shows (making it visible resumes a suspended one), or
+/// hides and suspends it. WebView2 only suspends an invisible webview.
+#[cfg(windows)]
+fn set_webview_active(window: &WebviewWindow, active: bool) {
+    use webview2_com::Microsoft::Web::WebView2::Win32::{ICoreWebView2_3, ICoreWebView2TrySuspendCompletedHandler};
+    use windows::core::Interface;
+    let _ = window.with_webview(move |webview| unsafe {
+        let controller = webview.controller();
+        let _ = controller.SetIsVisible(active);
+        if !active
+            && let Ok(core) = controller.CoreWebView2()
+            && let Ok(core) = core.cast::<ICoreWebView2_3>()
+        {
+            match core.TrySuspend(None::<&ICoreWebView2TrySuspendCompletedHandler>) {
+                Ok(()) => crate::log!("panel hidden for a while, webview suspended"),
+                Err(e) => crate::log!("suspending the webview failed: {e:?}"),
+            }
+        }
+    });
 }
