@@ -52,9 +52,13 @@ fn main() {
             commands::set_settings,
             commands::set_launch_at_login,
             commands::quit,
+            commands::shelf_copy,
+            commands::shelf_delete,
             commands::content_resized,
         ])
         .setup(move |app| {
+            // Shelf previews are shown straight from disk, and only from there.
+            let _ = app.asset_protocol_scope().allow_directory(model.shelf_dir(), true);
             let handle = app.handle().clone();
             model.set_listener(Box::new(move |snap| {
                 let _ = handle.emit_to(panel::LABEL, "state", snap);

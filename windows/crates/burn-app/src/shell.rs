@@ -4,6 +4,7 @@ use crate::model::{Model, WidgetEntry};
 use crate::panel::{Panel, Placement};
 use burn_core::ProviderId;
 use burn_taskbar::model::{Entry, Provider};
+use burn_taskbar::win::clipboard::ClipboardImage;
 use burn_taskbar::win::{self, Anchor, Host};
 use std::rc::Rc;
 use std::sync::Arc;
@@ -25,6 +26,21 @@ impl Host for TauriHost {
     fn open_log(&self) {
         // Opens the log in the default text editor.
         let _ = std::process::Command::new("explorer.exe").arg(win::log_path()).spawn();
+    }
+
+    fn clipboard_image(&self, image: ClipboardImage) {
+        let model = self.app.state::<Arc<Model>>().inner().clone();
+        // Converting and saving a 4K screenshot takes a moment: off the UI thread.
+        std::thread::spawn(move || {
+            let png = match image {
+                ClipboardImage::Png(png) => png,
+                ClipboardImage::Dib(dib) => match burn_core::shelf::dib_to_png(&dib) {
+                    Some(png) => png,
+                    None => return crate::log!("copied image in an unsupported bitmap format"),
+                },
+            };
+            model.capture(&png);
+        });
     }
 
     fn quit(&self) {

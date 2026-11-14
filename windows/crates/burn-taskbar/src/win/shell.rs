@@ -25,6 +25,7 @@ use windows::Win32::UI::Shell::{
 use windows::Win32::UI::WindowsAndMessaging::*;
 use windows::core::{PCWSTR, w};
 
+use super::clipboard::{self, ClipboardImage, ImageFile};
 use super::render::Painter;
 use super::taskbar::{Taskbar, dump_tree};
 use super::util::{hwnd_id, light_taskbar, log, to_rect, wide};
@@ -75,6 +76,8 @@ pub trait Host {
     fn menu_opened(&self);
     fn open_log(&self);
     fn quit(&self);
+    /// Someone copied an image the shelf should keep.
+    fn clipboard_image(&self, image: ClipboardImage);
 }
 
 thread_local! {
@@ -178,6 +181,7 @@ pub fn start(host: Rc<dyn Host>, entries: Vec<Entry>, tray_only: bool) -> window
         });
         with_shell(|s| s.refresh(true));
         SetTimer(Some(hwnd), TIMER_ID, 1000, None);
+        clipboard::listen(hwnd);
     }
     Ok(())
 }
@@ -206,6 +210,11 @@ pub fn set_tray_only(on: bool) {
 /// Where Burn sits right now, for opening the panel without a click (e.g. a second launch).
 pub fn current_anchor() -> Option<Anchor> {
     with_shell(|s| s.anchor()).flatten()
+}
+
+/// Puts shelf images on the clipboard (on the UI thread, which owns the clipboard window).
+pub fn copy_images(images: &[ImageFile]) -> bool {
+    with_shell(|s| s.host).is_some_and(|hwnd| clipboard::write_images(hwnd, images))
 }
 
 /// Removes the widget and the tray icon. Call before the process exits.
@@ -630,6 +639,13 @@ unsafe extern "system" fn host_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam
         },
         WM_APP_REFRESH => {
             with_shell(|s| s.refresh(true));
+        }
+        WM_CLIPBOARDUPDATE => {
+            if let Some(image) = clipboard::read_image(hwnd)
+                && let Some(h) = host()
+            {
+                h.clipboard_image(image);
+            }
         }
         WM_APP_TRAY => match loword(lparam.0 as usize) {
             WM_LBUTTONUP => activate(),

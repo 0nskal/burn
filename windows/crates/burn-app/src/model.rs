@@ -3,6 +3,7 @@
 
 use burn_core::database::UsageDatabase;
 use burn_core::settings::{Settings, pick_window};
+use burn_core::shelf::{Shelf, ShelfItem};
 use burn_core::{LimitsError, Paths, Period, ProviderId, ProviderLimits, UsageSummary, importer, limits};
 use serde::Serialize;
 use std::collections::BTreeMap;
@@ -14,6 +15,8 @@ const SYNC_EVERY: Duration = Duration::from_secs(300);
 /// Opening the panel refreshes what's older than this.
 const LIMITS_STALE_ON_OPEN: Duration = Duration::from_secs(30);
 const SYNC_STALE_ON_OPEN: Duration = Duration::from_secs(60);
+/// Screenshots past their retention go within the hour.
+const PRUNE_EVERY: Duration = Duration::from_secs(3600);
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "state", rename_all = "camelCase")]
@@ -61,6 +64,8 @@ pub struct Snapshot {
     /// Whether Windows starts Burn at login (the Run key, not a setting of our own).
     pub launch_at_login: bool,
     pub version: &'static str,
+    /// Saved screenshots, newest first.
+    pub shelf: Vec<ShelfItem>,
 }
 
 /// One provider in the taskbar widget.
@@ -85,6 +90,8 @@ pub type Listener = Box<dyn Fn(&Snapshot) + Send + Sync>;
 pub struct Model {
     paths: Paths,
     state: Mutex<State>,
+    /// Captures run one after another so file names and the repeat check never race.
+    shelf: Mutex<Shelf>,
     listener: Mutex<Option<Listener>>,
 }
 
@@ -106,11 +113,13 @@ impl Model {
                     settings,
                     launch_at_login: false,
                     version: env!("CARGO_PKG_VERSION"),
+                    shelf: Vec::new(),
                 },
                 limits_fetched_at: None,
                 synced_at: None,
                 refreshing_limits: false,
             }),
+            shelf: Mutex::new(Shelf::new(&paths.data_dir)),
             paths,
             listener: Mutex::new(None),
         })
@@ -137,11 +146,13 @@ impl Model {
         std::thread::Builder::new()
             .name("burn-scheduler".into())
             .spawn(move || {
+                m.load_shelf();
                 m.load_usage();
                 m.spawn_refresh_limits();
                 m.sync();
                 let mut next_limits = Instant::now() + LIMITS_EVERY;
                 let mut next_sync = Instant::now() + SYNC_EVERY;
+                let mut next_prune = Instant::now() + PRUNE_EVERY;
                 loop {
                     std::thread::sleep(Duration::from_secs(1));
                     let now = Instant::now();
@@ -152,6 +163,10 @@ impl Model {
                     if now >= next_sync {
                         next_sync = now + SYNC_EVERY;
                         m.sync();
+                    }
+                    if now >= next_prune {
+                        next_prune = now + PRUNE_EVERY;
+                        m.load_shelf();
                     }
                 }
             })
@@ -189,17 +204,76 @@ impl Model {
     }
 
     /// Replaces the settings, saves them and tells everyone.
-    pub fn set_settings(&self, settings: Settings) {
-        {
+    pub fn set_settings(self: &Arc<Self>, settings: Settings) {
+        let retention_changed = {
             let mut s = lock(&self.state);
             if s.snap.settings == settings {
                 return;
             }
+            let changed = s.snap.settings.shelf_retention_days != settings.shelf_retention_days;
             s.snap.settings = settings.clone();
+            changed
+        };
+        if retention_changed {
+            let m = self.clone();
+            std::thread::spawn(move || m.load_shelf());
         }
         if let Err(e) = settings.save(&settings_path(&self.paths)) {
             crate::log!("saving settings failed: {e}");
         }
+        self.changed();
+    }
+
+    // ---- Shelf -----------------------------------------------------------------------------
+
+    pub fn shelf_dir(&self) -> std::path::PathBuf {
+        lock(&self.shelf).dir().to_path_buf()
+    }
+
+    /// Loads the shelf, drops what's past retention and makes missing previews. Blocking.
+    pub fn load_shelf(&self) {
+        let days = lock(&self.state).snap.settings.shelf_retention_days;
+        let items = {
+            let mut shelf = lock(&self.shelf);
+            shelf.prune(days, std::time::SystemTime::now());
+            shelf.ensure_thumbs();
+            shelf.items()
+        };
+        lock(&self.state).snap.shelf = items;
+        self.changed();
+    }
+
+    #[cfg_attr(not(windows), allow(dead_code))]
+    /// Keeps a copied image (PNG bytes). Blocking: hashes, writes the file and its preview.
+    pub fn capture(&self, png: &[u8]) {
+        let days = lock(&self.state).snap.settings.shelf_retention_days;
+        let items = {
+            let mut shelf = lock(&self.shelf);
+            match shelf.save(png, std::time::SystemTime::now()) {
+                Ok(Some(_)) => {}
+                Ok(None) => return,
+                Err(e) => {
+                    crate::log!("saving a copied image failed: {e}");
+                    return;
+                }
+            }
+            shelf.prune(days, std::time::SystemTime::now());
+            shelf.items()
+        };
+        lock(&self.state).snap.shelf = items;
+        self.changed();
+    }
+
+    pub fn delete_shelf(&self, paths: Option<&[std::path::PathBuf]>) {
+        let items = {
+            let mut shelf = lock(&self.shelf);
+            match paths {
+                Some(p) => shelf.delete(p),
+                None => shelf.clear(),
+            }
+            shelf.items()
+        };
+        lock(&self.state).snap.shelf = items;
         self.changed();
     }
 

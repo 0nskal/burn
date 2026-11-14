@@ -4,6 +4,7 @@ use crate::model::{Model, Snapshot};
 use crate::panel::Panel;
 use burn_core::Period;
 use burn_core::settings::Settings;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::{AppHandle, State};
 
@@ -48,6 +49,45 @@ pub fn set_launch_at_login(model: State<'_, Arc<Model>>, on: bool) {
 pub fn quit(app: AppHandle) {
     crate::log!("quit");
     app.exit(0);
+}
+
+/// Puts shelf screenshots on the clipboard: one as image and file, several as files.
+#[tauri::command]
+pub fn shelf_copy(app: AppHandle, model: State<'_, Arc<Model>>, paths: Vec<PathBuf>) -> bool {
+    let dir = model.shelf_dir();
+    let paths: Vec<PathBuf> = paths.into_iter().filter(|p| p.parent() == Some(dir.as_path())).collect();
+    #[cfg(windows)]
+    {
+        use burn_taskbar::win::clipboard::ImageFile;
+        let single = paths.len() == 1;
+        let images: Vec<ImageFile> = paths
+            .iter()
+            .filter_map(|p| {
+                let png = std::fs::read(p).ok()?;
+                let dib = if single { burn_core::shelf::png_to_dib(&png) } else { None };
+                Some(ImageFile { png, dib, path: Some(p.clone()) })
+            })
+            .collect();
+        if images.is_empty() {
+            return false;
+        }
+        let (tx, rx) = std::sync::mpsc::channel();
+        let _ = app.run_on_main_thread(move || {
+            let _ = tx.send(burn_taskbar::win::copy_images(&images));
+        });
+        rx.recv().unwrap_or(false)
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = app;
+        !paths.is_empty()
+    }
+}
+
+/// Deletes the given screenshots, or all of them without `paths`.
+#[tauri::command]
+pub fn shelf_delete(model: State<'_, Arc<Model>>, paths: Option<Vec<PathBuf>>) {
+    model.delete_shelf(paths.as_deref());
 }
 
 /// Whether the panel is open; the page asks once it listens, as it may have missed `panel-shown`.
