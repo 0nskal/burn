@@ -1,0 +1,11 @@
+{
+ "usageModelAliases": {
+  "my-alias": "claude-sonnet-4-5"
+ },
+ "usagePriceOverrides": {
+  "overridden-model": {
+   "inputCostPerMillionTokens": 2,
+   "outputCostPerMillionTokens": 4
+  }
+ }
+}

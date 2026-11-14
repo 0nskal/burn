@@ -4,15 +4,16 @@
 
 # Burn
 
-**See how much of your AI coding subscriptions you've burned through, right from the menu bar.**
+**See how much of your AI coding subscriptions you've burned through, right from the menu bar or the Windows taskbar.**
 
 Live rate limits for Claude Code, Codex and Cursor, plus what your usage would have cost at API prices.
 
 [![Latest release](https://img.shields.io/github/v/release/noyex/burn?label=release&color=F04E14)](https://github.com/noyex/burn/releases/latest)
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-black?logo=apple)
+![Windows 11](https://img.shields.io/badge/Windows-11-0078D4)
 [![MIT license](https://img.shields.io/github/license/noyex/burn?color=blue)](LICENSE)
 
-[**Download Burn.dmg**](https://github.com/noyex/burn/releases/latest/download/Burn.dmg)
+[**Download for Mac**](https://github.com/noyex/burn/releases/latest/download/Burn.dmg) · [**Download for Windows**](https://github.com/noyex/burn/releases/latest/download/Burn-Setup.exe)
 
 <img src="docs/screenshot.png" width="560" alt="Burn popover">
 
@@ -68,7 +69,18 @@ cd burn
 scripts/build-app.sh --install   # builds Burn.app, copies it to /Applications and launches it
 ```
 
-### First launch
+### Windows
+
+You need Windows 11 and at least one of Claude Code, Codex CLI or Cursor signed in on the PC.
+
+1. Download [**Burn-Setup.exe**](https://github.com/noyex/burn/releases/latest/download/Burn-Setup.exe) and run it.
+   It installs for your user only (no admin rights), starts Burn, and Burn updates itself from then on.
+2. The installer isn't signed yet, so Windows says "Windows protected your PC": click **More info → Run anyway**.
+   With Smart App Control turned on, Windows blocks unsigned apps and Burn can't be installed yet.
+
+Burn sits in the taskbar next to the clock; click it for the panel. Details in [windows/README.md](windows/README.md).
+
+### First launch on a Mac
 
 Burn lives in the menu bar only, with no Dock icon. If macOS asks for access to the
 `Claude Code-credentials` Keychain item, click **Always Allow**: that's how Burn reads Claude's limits.
