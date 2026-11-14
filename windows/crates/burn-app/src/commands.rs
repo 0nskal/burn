@@ -114,6 +114,12 @@ pub async fn share_copy(app: AppHandle, model: State<'_, Arc<Model>>) -> Result<
     }
 }
 
+/// Installs the newer release; Burn restarts into it.
+#[tauri::command]
+pub async fn install_update(app: AppHandle) {
+    crate::update::install(app).await;
+}
+
 /// Deletes the given screenshots, or all of them without `paths`.
 #[tauri::command]
 pub fn shelf_delete(model: State<'_, Arc<Model>>, paths: Option<Vec<PathBuf>>) {

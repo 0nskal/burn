@@ -66,6 +66,10 @@ pub struct Snapshot {
     pub version: &'static str,
     /// Saved screenshots, newest first.
     pub shelf: Vec<ShelfItem>,
+    /// Version of a newer release, when there is one.
+    pub update: Option<String>,
+    /// The update is downloading and installing.
+    pub updating: bool,
 }
 
 /// One provider in the taskbar widget.
@@ -114,6 +118,8 @@ impl Model {
                     launch_at_login: false,
                     version: env!("CARGO_PKG_VERSION"),
                     shelf: Vec::new(),
+                    update: None,
+                    updating: false,
                 },
                 limits_fetched_at: None,
                 synced_at: None,
@@ -274,6 +280,16 @@ impl Model {
             shelf.items()
         };
         lock(&self.state).snap.shelf = items;
+        self.changed();
+    }
+
+    pub fn set_update(&self, version: Option<String>) {
+        lock(&self.state).snap.update = version;
+        self.changed();
+    }
+
+    pub fn set_updating(&self, on: bool) {
+        lock(&self.state).snap.updating = on;
         self.changed();
     }
 

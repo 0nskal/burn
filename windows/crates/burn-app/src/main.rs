@@ -7,6 +7,7 @@ mod model;
 mod panel;
 #[cfg(windows)]
 mod shell;
+mod update;
 
 use burn_core::Paths;
 use model::Model;
@@ -42,6 +43,7 @@ fn main() {
             // A second launch opens the panel of the running one.
             open_panel(app);
         }))
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(model.clone())
         .manage(Panel::new())
         .invoke_handler(tauri::generate_handler![
@@ -54,6 +56,7 @@ fn main() {
             commands::quit,
             commands::shelf_copy,
             commands::share_copy,
+            commands::install_update,
             commands::shelf_delete,
             commands::content_resized,
         ])
@@ -76,6 +79,7 @@ fn main() {
                 app.state::<Panel>().toggle(app.handle(), None);
             }
             model.start();
+            update::start(app.handle());
             // Reset countdowns in the widget age between refreshes.
             let handle = app.handle().clone();
             std::thread::spawn(move || {

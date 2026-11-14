@@ -46,12 +46,37 @@
     "macOSPrivateApi": true
   },
   "bundle": {
-    "active": false,
+    "active": true,
+    "targets": [
+      "nsis"
+    ],
+    "createUpdaterArtifacts": true,
+    "publisher": "noyex",
+    "homepage": "https://github.com/noyex/burn",
+    "shortDescription": "AI subscription limits and spend in the taskbar",
+    "copyright": "MIT License",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/icon.ico",
       "icons/icon.png"
-    ]
+    ],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "displayLanguageSelector": false
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDU1MDg3RjJBMDlBNjY0NTkKUldSWlpLWUpLbjhJVmJWWVVQNDZCU3F4MkNSMXVod2hNSGxnUkVrZi9LZzJIZEdvY1RGcDA4Z3QK",
+      "endpoints": [
+        "https://github.com/noyex/burn/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }
