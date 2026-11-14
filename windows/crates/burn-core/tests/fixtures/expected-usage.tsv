@@ -1,0 +1,20 @@
+claude:<HOME>/.claude/projects/-work-proj-a/sess-a.jsonl#4	claude	claude-sonnet-4-5[1m]	1793527500000	sess-a	/work/proj-a	7	0	0	9	0	standard				0.000156	log	<HOME>/.claude/projects/-work-proj-a/sess-a.jsonl
+codex:codex-a:1793534410000:gpt-5.1-codex:800:200:0:300:100#1	codex	gpt-5.1-codex	1793534410000	codex-a	/work/codex	800	200	0	300	100	standard				0.004025	log	<HOME>/.codex/sessions/2026/11/01/rollout-2026-11-01-a.jsonl
+codex:codex-a:1793534430000:gpt-5.1-codex:400:100:0:50:0#1	codex	gpt-5.1-codex	1793534430000	codex-a	/work/codex	400	100	0	50	0	fast				0.002025	log	<HOME>/.codex/sessions/2026/11/01/rollout-2026-11-01-a.jsonl
+codex:codex-b:1793606410000:gpt-5:800:0:0:80:10#1	codex	gpt-5	1793606410000	codex-b	/work/codex-b	800	0	0	80	10	standard				0.0018	log	<HOME>/.codex/sessions/2026/11/02/rollout-2026-11-02-b.jsonl
+codex:codex-b:1793606412000:gpt-5:50:50:0:10:0#1	codex	gpt-5	1793606412000	codex-b	/work/codex-b	50	50	0	10	0	standard				0.00016875	log	<HOME>/.codex/sessions/2026/11/02/rollout-2026-11-02-b.jsonl
+codex:codex-c:1793782810000:gpt-5.1-codex:300:0:0:30:0#1	codex	gpt-5.1-codex	1793782810000	codex-c	/work/codex	300	0	0	30	0	standard			turn-c1	0.000675	log	<HOME>/.codex/sessions/2026/11/04/rollout-2026-11-04-c.jsonl
+codex:codex-fork:1793696700000:gpt-5.1-codex:40:0:0:4:0#1	codex	gpt-5.1-codex	1793696700000	codex-fork	/work/codex	40	0	0	4	0	standard			turn-f1	9.0e-05	log	<HOME>/.codex/sessions/2026/11/03/rollout-2026-11-03-fork.jsonl
+codex:old-codex:1761900003000:gpt-5.1-codex:100:10:0:20:5#1	codex	gpt-5.1-codex	1761900003000	old-codex		100	10	0	20	5	fast			turn-old	0.00065250000000000009	t3-cache	/gone/.codex/sessions/old.jsonl
+codex:old-codex:1761900004000:gpt-5.1-codex:100:10:0:20:5#1	codex	gpt-5.1-codex	1761900004000	old-codex		100	10	0	20	5	standard				0.00032625000000000004	t3-cache	/gone/.codex/sessions/old.jsonl
+msg_10:req_10	claude	claude-sonnet-4-5	1793530800000	sess-a	/work/proj-a	20	0	0	30	0	standard				0.00051	log	<HOME>/.claude/projects/-work-proj-a/sess-a/subagents/agent-1.jsonl
+msg_1:req_1	claude	claude-sonnet-4-5	1793527205123	sess-a	/work/proj-a	10	3000	400	200	0	standard				0.00543	log	<HOME>/.claude/projects/-work-proj-a/sess-a.jsonl
+msg_2:req_2	claude	claude-opus-4-1	1793527260000	sess-a	/work/proj-a	5	50000	0	1000	0	fast				0.30015000000000003	log	<HOME>/.claude/projects/-work-proj-a/sess-a.jsonl
+msg_3:req_3	claude	claude-fable-5-2	1793527320500	sess-a	/work/proj-a	1	2000	100	300	0	standard				0.013408	log	<HOME>/.claude/projects/-work-proj-a/sess-a.jsonl
+msg_5:req_5	claude	claude-sonnet-4-5	1793527440000	sess-a	/work/proj-a	100	0	0	50	0	standard	0.5			0.5	log	<HOME>/.claude/projects/-work-proj-a/sess-a.jsonl
+msg_6:req_6	claude	my-alias	1793527560000	sess-a	/work/proj-a	1000	0	0	1000	0	standard				0.018000000000000002	log	<HOME>/.claude/projects/-work-proj-a/sess-a.jsonl
+msg_7:req_7	claude	overridden-model	1793527620000	sess-a	/work/proj-a	1000	0	0	1000	0	standard	9.0			0.006	log	<HOME>/.claude/projects/-work-proj-a/sess-a.jsonl
+msg_8:req_8	claude	unknown-model	1793527680000	sess-a	/work/proj-a	1000	0	0	1000	0	standard				0.0	log	<HOME>/.claude/projects/-work-proj-a/sess-a.jsonl
+msg_9:req_9	claude	claude-sonnet-4-5	1793610001000	sess-b	/work/proj-b	1	3	4	2	0	standard				4.8899999999999996e-05	log	<HOME>/.claude/projects/-work-proj-b/sess-b.jsonl
+msg_old2:req_old2	claude	claude-opus-4-1	1761900002000	old-sess	-old-proj	1	2	3	4	0	fast	0.25	claude-sonnet-4-5		0.25	t3-cache	/gone/.claude/projects/-old-proj/old.jsonl
+msg_old:req_old	claude	claude-sonnet-4-5	1761900000000	old-sess	-old-proj	10	20	30	40	0	standard				0.0007485	t3-cache	/gone/.claude/projects/-old-proj/old.jsonl

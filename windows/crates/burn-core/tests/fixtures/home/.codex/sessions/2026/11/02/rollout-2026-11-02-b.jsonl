@@ -1,0 +1,5 @@
+{"timestamp":"2026-11-02T08:00:00.000Z","type":"session_meta","payload":{"session_id":"codex-b","id":null,"cwd":"/work/codex-b","model_provider":"azure"}}
+{"timestamp":"2026-11-02T08:00:01.000Z","type":"turn_context","payload":{"model":"gpt-5","turn_id":"turn-b1"}}
+{"timestamp":"2026-11-02T08:00:10.000Z","type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":800,"cached_input_tokens":0,"output_tokens":80,"reasoning_output_tokens":10,"total_tokens":880}}}}
+{"timestamp":"2026-11-02T08:00:11.000Z","type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":800,"cached_input_tokens":0,"output_tokens":80,"reasoning_output_tokens":10,"total_tokens":880}}}}
+{"timestamp":"2026-11-02T08:00:12.000Z","type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":100,"cached_input_tokens":50,"output_tokens":10,"reasoning_output_tokens":0,"total_tokens":110}}}}

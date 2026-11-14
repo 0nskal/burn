@@ -136,7 +136,8 @@ pub struct UsageBucket {
 
 impl UsageBucket {
     pub fn total(&self) -> f64 {
-        self.cost.values().sum()
+        // `sum()` of nothing is -0.0, which prints as "-0.00".
+        self.cost.values().fold(0.0, |a, b| a + b)
     }
 }
 

@@ -89,12 +89,12 @@ fn print_summaries(paths: &Paths) {
             Ok(s) => {
                 let ms = t0.elapsed().as_millis();
                 println!(
-                    "== {}: ${:.2} tokens={} buckets={} unit={:?} ({ms} ms)",
+                    "== {}: ${:.2} tokens={} buckets={} unit={} ({ms} ms)",
                     p.title(),
                     s.cost,
                     s.tokens,
                     s.buckets.len(),
-                    s.unit
+                    format!("{:?}", s.unit).to_lowercase()
                 );
                 let by: Vec<String> = s.by_provider.iter().map(|(k, v)| format!("{}=${v:.2}", k.as_str())).collect();
                 println!("  byProvider: {}", by.join(" "));
