@@ -49,6 +49,9 @@ fn main() {
             commands::set_period,
             commands::hide_panel,
             commands::panel_visible,
+            commands::set_settings,
+            commands::set_launch_at_login,
+            commands::quit,
             commands::content_resized,
         ])
         .setup(move |app| {
@@ -58,7 +61,10 @@ fn main() {
                 push_widget(&handle);
             }));
             #[cfg(windows)]
-            shell::start(app.handle())?;
+            {
+                model.set_launch_at_login(burn_taskbar::win::autostart::is_enabled());
+                shell::start(app.handle())?;
+            }
             #[cfg(not(windows))]
             {
                 // Development off Windows: there is no taskbar, so the panel stays open.
@@ -86,8 +92,15 @@ fn main() {
             }
             _ => {}
         })
-        .run(tauri::generate_context!())
-        .expect("run Burn");
+        .build(tauri::generate_context!())
+        .expect("build Burn")
+        .run(|_app, event| {
+            if let tauri::RunEvent::Exit = event {
+                // On the UI thread, before the process ends: no ghost tray icon, no orphaned widget.
+                #[cfg(windows)]
+                burn_taskbar::win::shutdown();
+            }
+        });
 }
 
 fn open_panel(app: &tauri::AppHandle) {

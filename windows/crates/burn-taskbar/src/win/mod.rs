@@ -1,5 +1,6 @@
 //! The Windows side: the widget inside Explorer's taskbar and the tray icon fallback.
 
+pub mod autostart;
 mod render;
 mod shell;
 mod taskbar;

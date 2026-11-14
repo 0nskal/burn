@@ -1,7 +1,7 @@
 // Talks to the Rust side. In a plain browser (`npm run dev` without Tauri) it serves demo data
 // instead, so the UI can be built and screenshotted anywhere: `?demo=loading|signedOut|empty`.
 
-import type { Period, Snapshot } from "./types";
+import type { Period, Settings, Snapshot } from "./types";
 import { demoSnapshot } from "./demo";
 
 const inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -43,4 +43,7 @@ async function call(cmd: string, args?: Record<string, unknown>): Promise<void> 
 export const setPeriod = (period: Period) => call("set_period", { period });
 export const hidePanel = () => call("hide_panel");
 export const contentResized = (width: number, height: number) => call("content_resized", { width, height });
+export const setSettings = (settings: Settings) => call("set_settings", { settings });
+export const setLaunchAtLogin = (on: boolean) => call("set_launch_at_login", { on });
+export const quit = () => call("quit");
 export const isTauri = inTauri;

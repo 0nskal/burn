@@ -86,6 +86,9 @@ export interface Snapshot {
   importPercent: number | null;
   hasUsage: boolean;
   settings: Settings;
+  /** Whether Windows starts Burn at login. */
+  launchAtLogin: boolean;
+  version: string;
 }
 
 export function limitsOf(s: LimitState | undefined): ProviderLimits | null {

@@ -29,7 +29,6 @@ impl Host for TauriHost {
 
     fn quit(&self) {
         crate::log!("quit");
-        win::shutdown();
         self.app.exit(0);
     }
 }

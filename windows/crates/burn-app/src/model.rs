@@ -58,6 +58,9 @@ pub struct Snapshot {
     /// False until at least one usage record exists.
     pub has_usage: bool,
     pub settings: Settings,
+    /// Whether Windows starts Burn at login (the Run key, not a setting of our own).
+    pub launch_at_login: bool,
+    pub version: &'static str,
 }
 
 /// One provider in the taskbar widget.
@@ -101,6 +104,8 @@ impl Model {
                     import_percent: None,
                     has_usage: true,
                     settings,
+                    launch_at_login: false,
+                    version: env!("CARGO_PKG_VERSION"),
                 },
                 limits_fetched_at: None,
                 synced_at: None,
@@ -183,17 +188,23 @@ impl Model {
         std::thread::spawn(move || m.load_usage());
     }
 
-    /// Applies `f` to the settings, saves them and tells everyone.
-    #[allow(dead_code)] // The settings screen (next milestone) calls it.
-    pub fn update_settings(&self, f: impl FnOnce(&mut Settings)) {
-        let settings = {
+    /// Replaces the settings, saves them and tells everyone.
+    pub fn set_settings(&self, settings: Settings) {
+        {
             let mut s = lock(&self.state);
-            f(&mut s.snap.settings);
-            s.snap.settings.clone()
-        };
+            if s.snap.settings == settings {
+                return;
+            }
+            s.snap.settings = settings.clone();
+        }
         if let Err(e) = settings.save(&settings_path(&self.paths)) {
             crate::log!("saving settings failed: {e}");
         }
+        self.changed();
+    }
+
+    pub fn set_launch_at_login(&self, on: bool) {
+        lock(&self.state).snap.launch_at_login = on;
         self.changed();
     }
 

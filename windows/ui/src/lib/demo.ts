@@ -90,6 +90,8 @@ export function demoSnapshot(kind: string | null, period: Period = "week"): Snap
     importPercent: null,
     hasUsage: true,
     settings,
+    launchAtLogin: true,
+    version: "0.1.0",
   };
   switch (kind) {
     case "loading":
