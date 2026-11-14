@@ -156,6 +156,11 @@ button:focus-visible {
 .pill-button.prominent:hover {
   opacity: 0.9;
 }
+.pill-button.destructive {
+  background: var(--full-on-light-ink);
+  color: #fff;
+  font-weight: 700;
+}
 .pill-button:active {
   opacity: 0.75;
   transform: scale(0.97);

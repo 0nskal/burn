@@ -8,10 +8,18 @@
     label,
     onclick,
     size = 28,
-  }: { icon: "gear" | "chevron-left"; label: string; onclick: () => void; size?: number } = $props();
+    floating = false,
+  }: {
+    icon: "gear" | "chevron-left" | "expand" | "collapse";
+    label: string;
+    onclick: () => void;
+    size?: number;
+    /** Sits on its own over the desktop instead of on a surface. */
+    floating?: boolean;
+  } = $props();
 </script>
 
-<button class="round" style:width="{size}px" style:height="{size}px" aria-label={label} use:tip={label} {onclick}>
+<button class="round" class:floating style:width="{size}px" style:height="{size}px" aria-label={label} use:tip={label} {onclick}>
   <Icons name={icon} size={Math.round(size * 0.46)} />
 </button>
 
@@ -34,6 +42,15 @@
     content: "";
     position: absolute;
     inset: -6px;
+  }
+  .round.floating {
+    background: var(--surface);
+    box-shadow:
+      0 4px 20px var(--shadow),
+      inset 0 0 0 0.5px var(--hairline);
+  }
+  .round.floating:hover {
+    background: var(--raised);
   }
   .round:hover {
     background: var(--neutral-hover);

@@ -2,7 +2,7 @@
 // shows it right away and sends the whole thing to the app.
 
 import { customSizeOf, defaultWindow, merge, order, sizes } from "./layout";
-import type { CardColor, CardSize, PanelLayout, PanelOrder, ProviderId, Settings } from "./types";
+import type { CardColor, CardSize, PanelLayout, PanelOrder, ProviderId, Settings, Tab } from "./types";
 
 const without = (list: ProviderId[], p: ProviderId) => list.filter((x) => x !== p);
 
@@ -57,3 +57,7 @@ export const setShowsSpending = (s: Settings, on: boolean): Settings => ({ ...s,
 export const setPanelLayout = (s: Settings, panelLayout: PanelLayout): Settings => ({ ...s, panelLayout });
 export const setPanelOrder = (s: Settings, panelOrder: PanelOrder): Settings => ({ ...s, panelOrder });
 export const setTrayOnly = (s: Settings, trayOnly: boolean): Settings => ({ ...s, trayOnly });
+export const setTab = (s: Settings, tab: Tab): Settings => ({ ...s, tab });
+export const setShelfExpanded = (s: Settings, shelfExpanded: boolean): Settings => ({ ...s, shelfExpanded });
+/** 0 keeps screenshots forever. */
+export const setShelfRetentionDays = (s: Settings, shelfRetentionDays: number): Settings => ({ ...s, shelfRetentionDays });

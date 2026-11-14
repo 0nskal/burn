@@ -1,15 +1,17 @@
 <!-- The panel (PopoverView.swift): provider cards, spend, and a footer, floating over the desktop. -->
 <script lang="ts">
   import { onMount } from "svelte";
-  import { contentResized, getState, hidePanel, onPanel, onState, setPeriod } from "./lib/api";
+  import { contentResized, getState, hidePanel, onPanel, onState, setPeriod, shelfCopy, shelfDelete } from "./lib/api";
   import { clock } from "./lib/clock.svelte";
   import { demoUsage } from "./lib/demo";
   import { synced } from "./lib/format";
   import { customSize, hasCard, order, panelProviders, rows as arrange, sizes } from "./lib/layout";
-  import { pageIn, pageOut } from "./lib/motion";
+  import { pageIn, pageOut, reducedMotion } from "./lib/motion";
+  import { cubicOut } from "svelte/easing";
+  import { scale } from "svelte/transition";
   import { holdToEdit } from "./lib/press";
-  import { reorder, setCardSize, setShowsInPanel, setShowsSpending } from "./lib/settings";
-  import { LOGIN_COMMAND, PROVIDERS, PROVIDER_NAME, type CardSize, type Period, type ProviderId, type Settings, type Snapshot } from "./lib/types";
+  import { reorder, setCardSize, setShelfExpanded, setShowsInPanel, setShowsSpending, setTab } from "./lib/settings";
+  import { LOGIN_COMMAND, PROVIDERS, PROVIDER_NAME, type CardSize, type Period, type ProviderId, type Settings, type ShelfItem, type Snapshot, type Tab } from "./lib/types";
   import CardGrid from "./lib/components/CardGrid.svelte";
   import CommandChip from "./lib/components/CommandChip.svelte";
   import EditChrome from "./lib/components/EditChrome.svelte";
@@ -17,10 +19,14 @@
   import Icons from "./lib/components/Icons.svelte";
   import IssueRow from "./lib/components/IssueRow.svelte";
   import RoundButton from "./lib/components/RoundButton.svelte";
+  import ShareButton from "./lib/components/ShareButton.svelte";
+  import ShelfGrid from "./lib/components/ShelfGrid.svelte";
   import SettingsView from "./lib/components/SettingsView.svelte";
   import SpendBlock from "./lib/components/SpendBlock.svelte";
+  import TabSwitcher from "./lib/components/TabSwitcher.svelte";
   import Tip from "./lib/components/Tip.svelte";
-  import { isTauri, quit, setLaunchAtLogin, setSettings } from "./lib/api";
+  import { tip } from "./lib/tip.svelte";
+  import { installUpdate, isTauri, quit, setLaunchAtLogin, setSettings } from "./lib/api";
 
   let snap = $state<Snapshot | null>(null);
   /** False while the panel is closed, so the content animates in on every open. */
@@ -30,6 +36,24 @@
   /** The provider page open in settings. */
   let settingsProvider = $state<ProviderId | null>(null);
   let editing = $state(false);
+  /** Paths of the selected screenshots. */
+  let selection = $state<string[]>([]);
+  let confirmingClear = $state(false);
+  let copiedSelection = $state(false);
+  let clearTimer: ReturnType<typeof setTimeout> | undefined;
+  let copiedTimer: ReturnType<typeof setTimeout> | undefined;
+
+  const USAGE_WIDTH = 304;
+  const EXPANDED_WIDTH = 644;
+  const tab = $derived(snap?.settings.tab ?? "usage");
+  const expanded = $derived(snap?.settings.shelfExpanded ?? false);
+  /** Doesn't depend on the tab, so the shelf keeps its grid while it fades out. */
+  const shelfWidth = $derived(expanded ? EXPANDED_WIDTH : USAGE_WIDTH);
+  const contentWidth = $derived(view === "usage" && tab === "shelf" ? shelfWidth : USAGE_WIDTH);
+  const usageRow = $derived(tab === "usage" && !editing);
+  const shelfRow = $derived(tab === "shelf");
+  const editRow = $derived(tab === "usage" && editing);
+  const selectedItems = $derived<ShelfItem[]>(snap ? snap.shelf.filter((i) => selection.includes(i.path)) : []);
 
   const shown = $derived(snap ? panelProviders(snap) : []);
   const cards = $derived(snap ? shown.filter((p) => hasCard(snap!, p)) : []);
@@ -56,8 +80,57 @@
   }
 
   const startEditing = () => {
+    if (snap && snap.settings.tab !== "usage") commit(setTab(snap.settings, "usage"));
     view = "usage";
     editing = true;
+  };
+
+  function chooseTab(t: Tab) {
+    if (!snap || snap.settings.tab === t) return;
+    // Editing only exists on the usage page.
+    editing = false;
+    commit(setTab(snap.settings, t));
+  }
+
+  // Pruned or cleared screenshots must not stay selected.
+  $effect(() => {
+    if (!snap) return;
+    const paths = new Set(snap.shelf.map((i) => i.path));
+    if (selection.some((p) => !paths.has(p))) selection = selection.filter((p) => paths.has(p));
+  });
+
+  const toggle = (path: string) => (selection = selection.includes(path) ? selection.filter((p) => p !== path) : [...selection, path]);
+
+  function removeShelf(paths?: string[]) {
+    if (!snap) return;
+    snap.shelf = paths ? snap.shelf.filter((i) => !paths.includes(i.path)) : [];
+    shelfDelete(paths);
+  }
+
+  function clearAll() {
+    if (!confirmingClear) {
+      confirmingClear = true;
+      clearTimeout(clearTimer);
+      clearTimer = setTimeout(() => (confirmingClear = false), 3000);
+      return;
+    }
+    clearTimeout(clearTimer);
+    confirmingClear = false;
+    removeShelf();
+  }
+
+  async function copySelection() {
+    if (!(await shelfCopy(selectedItems.map((i) => i.path)))) return;
+    copiedSelection = true;
+    clearTimeout(copiedTimer);
+    copiedTimer = setTimeout(() => (copiedSelection = false), 1200);
+  }
+
+  const copyOne = (item: ShelfItem) => shelfCopy([item.path]);
+
+  const pop = (node: Element) => {
+    const reduced = reducedMotion();
+    return scale(node, { start: 0.8, duration: reduced ? 0 : 180, easing: cubicOut });
   };
   const stopEditing = () => (editing = false);
 
@@ -89,6 +162,8 @@
           editing = false;
           view = "usage";
           settingsProvider = null;
+          selection = [];
+          confirmingClear = false;
         },
       );
       // Development aid for screenshots: `#settings`, `#settings/claude` or `#edit` opens there.
@@ -97,6 +172,7 @@
         view = "settings";
         settingsProvider = (provider as ProviderId) || null;
       } else if (start === "edit") editing = true;
+      else if (start === "shelf") snap.settings = setTab(snap.settings, "shelf");
     })();
 
     const onKey = (e: KeyboardEvent) => {
@@ -110,6 +186,8 @@
     window.addEventListener("keydown", onKey);
     return () => {
       cancelled = true;
+      clearTimeout(clearTimer);
+      clearTimeout(copiedTimer);
       window.removeEventListener("keydown", onKey);
     };
   });
@@ -126,7 +204,7 @@
 
 <div class="root" bind:this={root}>
   {#if snap}
-    <div class="content" class:visible>
+    <div class="content" class:visible style:width="{contentWidth}px">
       <div class="stage">
         {#if view === "settings"}
           <div class="page" in:pageIn out:pageOut>
@@ -144,76 +222,131 @@
           </div>
         {:else}
           <div class="page" in:pageIn out:pageOut>
-            {#if snap.connected.length === 0}
-              <div class="block neutral reveal" style:--i={0}>
-                <p class="hint">Sign in to a provider in a terminal:</p>
-                {#each PROVIDERS as p (p)}
-                  <div class="signin-row"><Glyph provider={p} size={12} /><CommandChip command={LOGIN_COMMAND[p]} /></div>
-                {/each}
-              </div>
-            {:else}
-              <CardGrid
-                {snap}
-                {cards}
-                rows={cardRows}
-                {sizeOf}
-                {editing}
-                onEdit={startEditing}
-                onHide={(p) => commit(setShowsInPanel(snap!.settings, p, false))}
-                onSize={(p, size: CardSize) => commit(setCardSize(snap!.settings, p, size, cards))}
-                onReorder={(next) => commit(reorder(snap!.settings, next))}
-              />
-              {#each issues as p (p)}
-                <div class="reveal" style:--i={cardRows.length} use:holdToEdit={editing ? null : startEditing}>
-                  <EditChrome {editing} title={PROVIDER_NAME[p]} seed={PROVIDERS.indexOf(p) * 1.9} onHide={() => commit(setShowsInPanel(snap!.settings, p, false))}>
-                    <IssueRow provider={p} state={snap.limits[p] ?? { state: "loading" }} />
-                  </EditChrome>
+            <div class="top">
+              <TabSwitcher selected={tab} onSelect={chooseTab} />
+              {#if tab === "shelf"}
+                <div class="expand" transition:pop>
+                  <RoundButton
+                    floating
+                    size={36}
+                    icon={expanded ? "collapse" : "expand"}
+                    label={expanded ? "Make shelf smaller" : "Make shelf bigger"}
+                    onclick={() => commit(setShelfExpanded(snap!.settings, !expanded))}
+                  />
                 </div>
-              {/each}
-            {/if}
+              {/if}
+            </div>
 
-            {#if spendShown}
-              <div class="reveal" style:--i={cardRows.length + 1} use:holdToEdit={editing ? null : startEditing}>
-                <EditChrome {editing} title="Spent" seed={5.3} onHide={() => commit(setShowsSpending(snap!.settings, false))}>
-                  {#if snap.hasUsage}
-                    <SpendBlock usage={snap.usage} error={snap.usageError} period={snap.period} onPeriod={choosePeriod} />
-                  {:else}
-                    <div class="block importing">
-                      <span>Importing usage from Claude Code and Codex logs…</span>
-                      <div class="progress"><div style:width="{snap.importPercent ?? 0}%"></div></div>
+            <div class="stage">
+              {#if tab === "usage"}
+                <div class="page" in:pageIn out:pageOut>
+                {#if snap.connected.length === 0}
+                  <div class="block neutral reveal" style:--i={0}>
+                    <p class="hint">Sign in to a provider in a terminal:</p>
+                    {#each PROVIDERS as p (p)}
+                      <div class="signin-row"><Glyph provider={p} size={12} /><CommandChip command={LOGIN_COMMAND[p]} /></div>
+                    {/each}
+                  </div>
+                {:else}
+                  <CardGrid
+                    {snap}
+                    {cards}
+                    rows={cardRows}
+                    {sizeOf}
+                    {editing}
+                    onEdit={startEditing}
+                    onHide={(p) => commit(setShowsInPanel(snap!.settings, p, false))}
+                    onSize={(p, size: CardSize) => commit(setCardSize(snap!.settings, p, size, cards))}
+                    onReorder={(next) => commit(reorder(snap!.settings, next))}
+                  />
+                  {#each issues as p (p)}
+                    <div class="reveal" style:--i={cardRows.length} use:holdToEdit={editing ? null : startEditing}>
+                      <EditChrome {editing} title={PROVIDER_NAME[p]} seed={PROVIDERS.indexOf(p) * 1.9} onHide={() => commit(setShowsInPanel(snap!.settings, p, false))}>
+                        <IssueRow provider={p} state={snap.limits[p] ?? { state: "loading" }} />
+                      </EditChrome>
                     </div>
-                  {/if}
-                </EditChrome>
-              </div>
-            {/if}
-
-            {#if editing && (hiddenProviders.length > 0 || !snap.settings.showsSpending)}
-              <div class="hidden-list">
-                {#each hiddenProviders as p (p)}
-                  <button class="add" aria-label="Show {PROVIDER_NAME[p]}" onclick={() => commit(setShowsInPanel(snap!.settings, p, true))}>
-                    <Icons name="plus" size={9} />{PROVIDER_NAME[p]}
-                  </button>
-                {/each}
-                {#if !snap.settings.showsSpending}
-                  <button class="add" aria-label="Show Spent" onclick={() => commit(setShowsSpending(snap!.settings, true))}>
-                    <Icons name="plus" size={9} />Spent
-                  </button>
+                  {/each}
                 {/if}
-              </div>
-            {:else if !editing && panelEmpty}
-              <div class="block neutral empty reveal" style:--i={0}>
-                <p class="hint">Everything is hidden from the panel</p>
-                <button class="pill-button prominent" onclick={startEditing}>Edit panel</button>
-              </div>
-            {/if}
+
+                {#if spendShown}
+                  <div class="reveal" style:--i={cardRows.length + 1} use:holdToEdit={editing ? null : startEditing}>
+                    <EditChrome {editing} title="Spent" seed={5.3} onHide={() => commit(setShowsSpending(snap!.settings, false))}>
+                      {#if snap.hasUsage}
+                        <SpendBlock usage={snap.usage} error={snap.usageError} period={snap.period} onPeriod={choosePeriod} />
+                      {:else}
+                        <div class="block importing">
+                          <span>Importing usage from Claude Code and Codex logs…</span>
+                          <div class="progress"><div style:width="{snap.importPercent ?? 0}%"></div></div>
+                        </div>
+                      {/if}
+                    </EditChrome>
+                  </div>
+                {/if}
+
+                {#if editing && (hiddenProviders.length > 0 || !snap.settings.showsSpending)}
+                  <div class="hidden-list">
+                    {#each hiddenProviders as p (p)}
+                      <button class="add" aria-label="Show {PROVIDER_NAME[p]}" onclick={() => commit(setShowsInPanel(snap!.settings, p, true))}>
+                        <Icons name="plus" size={9} />{PROVIDER_NAME[p]}
+                      </button>
+                    {/each}
+                    {#if !snap.settings.showsSpending}
+                      <button class="add" aria-label="Show Spent" onclick={() => commit(setShowsSpending(snap!.settings, true))}>
+                        <Icons name="plus" size={9} />Spent
+                      </button>
+                    {/if}
+                  </div>
+                {:else if !editing && panelEmpty}
+                  <div class="block neutral empty reveal" style:--i={0}>
+                    <p class="hint">Everything is hidden from the panel</p>
+                    <button class="pill-button prominent" onclick={startEditing}>Edit panel</button>
+                  </div>
+                {/if}
+                </div>
+              {:else}
+                <div class="page" in:pageIn out:pageOut>
+                  <ShelfGrid
+                    items={snap.shelf}
+                    width={shelfWidth}
+                    columns={expanded ? 4 : 2}
+                    maxHeight={expanded ? 560 : 380}
+                    {selection}
+                    onToggle={toggle}
+                    onCopy={copyOne}
+                  />
+                </div>
+              {/if}
+            </div>
 
             <footer class="footer reveal" style:--i={cardRows.length + 2}>
-              <div class="row-in" class:off={editing} inert={editing}>
-                <span class="status" class:hidden={!snap.hasUsage}>{snap.syncing ? "Syncing…" : synced(snap.lastSync, clock.now)}</span>
+              <div class="row-in" class:off={!usageRow} inert={!usageRow}>
+                <span class="status grow" class:hidden={!snap.hasUsage}>{snap.syncing ? "Syncing…" : synced(snap.lastSync, clock.now)}</span>
+                {#if snap.usage && snap.usage.cost > 0}<ShareButton />{/if}
+                {#if snap.update}
+                  <button class="pill-button prominent" disabled={snap.updating} onclick={installUpdate} use:tip={`Update to Burn ${snap.update}`}>
+                    {snap.updating ? "Updating…" : "Update"}
+                  </button>
+                {/if}
                 <RoundButton icon="gear" label="Settings" onclick={() => (view = "settings")} />
               </div>
-              <div class="row-in" class:off={!editing} inert={!editing}>
-                <span class="status">Drag to reorder</span>
+              <div class="row-in" class:off={!shelfRow} inert={!shelfRow}>
+                <span class="status grow">{selection.length > 0 ? `${selection.length} selected` : ""}</span>
+                {#if selection.length > 0}
+                  <button class="pill-button" onclick={() => (selection = [])}>Deselect</button>
+                  <button class="pill-button prominent copy" onclick={copySelection}>{copiedSelection ? "Copied" : `Copy ${selection.length}`}</button>
+                {:else if snap.shelf.length > 0}
+                  <button class="pill-button" class:destructive={confirmingClear} onclick={clearAll}>{confirmingClear ? "Clear all?" : "Clear"}</button>
+                {/if}
+                <!-- Kept out of the way while screenshots are selected; the footer is full then. -->
+                {#if snap.update && selection.length === 0}
+                  <button class="pill-button prominent" disabled={snap.updating} onclick={installUpdate} use:tip={`Update to Burn ${snap.update}`}>
+                    {snap.updating ? "Updating…" : "Update"}
+                  </button>
+                {/if}
+                <RoundButton icon="gear" label="Settings" onclick={() => (view = "settings")} />
+              </div>
+              <div class="row-in" class:off={!editRow} inert={!editRow}>
+                <span class="status grow">Drag to reorder</span>
                 <button class="pill-button prominent" onclick={stopEditing}>Done</button>
               </div>
             </footer>
@@ -228,7 +361,8 @@
 <style>
   /* Room around the blocks for their shadows (Bento.shadowInset), and on top for the edit chrome's hide buttons. */
   .root {
-    width: 332px;
+    width: fit-content;
+    min-width: 332px;
     padding: 12px 14px 18px;
   }
   .content {
@@ -257,6 +391,15 @@
   }
   .settings {
     background: var(--surface);
+  }
+  /* Above the shelf's scroll area, which reaches a little past the grid for shadows. */
+  .top {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 2px;
   }
   :global(.reveal) {
     opacity: 0;
@@ -369,6 +512,13 @@
   }
   .status {
     color: var(--secondary);
+  }
+  .grow {
+    flex: 1;
+    min-width: 0;
+  }
+  .copy {
+    min-width: 64px;
   }
   .status.hidden {
     opacity: 0;

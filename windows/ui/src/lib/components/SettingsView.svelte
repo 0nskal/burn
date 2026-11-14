@@ -8,6 +8,7 @@
     setCardWindow,
     setPanelLayout,
     setPanelOrder,
+    setShelfRetentionDays,
     setShowsInPanel,
     setShowsInWidget,
     setShowsSpending,
@@ -63,6 +64,12 @@
   const ORDERS: { id: PanelOrder; label: string }[] = [
     { id: "manual", label: "Manual" },
     { id: "closestToLimit", label: "Closest to limit" },
+  ];
+  const KEEP = [
+    { id: "1", label: "1 day" },
+    { id: "7", label: "7 days" },
+    { id: "30", label: "30 days" },
+    { id: "0", label: "Forever" },
   ];
   const COLORS: CardColor[] = ["coral", "mono", "lavender", "sky"];
   const cap = (v: string) => v[0].toUpperCase() + v.slice(1);
@@ -218,6 +225,14 @@
           </button>
         </div>
       {/each}
+    </div>
+
+    {@render title("Shelf")}
+    <div class="group">
+      <div class="item row">
+        <span class="label">Keep screenshots</span>
+        <Select label="Keep screenshots" value={String(s.shelfRetentionDays)} options={KEEP} onChange={(id) => commit(setShelfRetentionDays(s, Number(id)))} />
+      </div>
     </div>
 
     <div class="group">

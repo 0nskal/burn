@@ -75,6 +75,16 @@ export interface Settings {
   trayOnly: boolean;
 }
 
+/** A copied screenshot in the shelf folder; `thumb` is a downscaled PNG that may not exist yet. */
+export interface ShelfItem {
+  path: string;
+  thumb: string;
+  /** Epoch ms. */
+  date: number;
+  width: number;
+  height: number;
+}
+
 export interface Snapshot {
   connected: ProviderId[];
   limits: Partial<Record<ProviderId, LimitState>>;
@@ -85,10 +95,16 @@ export interface Snapshot {
   syncing: boolean;
   importPercent: number | null;
   hasUsage: boolean;
+  /** Newest first. */
+  shelf: ShelfItem[];
   settings: Settings;
   /** Whether Windows starts Burn at login. */
   launchAtLogin: boolean;
   version: string;
+  /** Version of a newer release, when there is one. */
+  update: string | null;
+  /** The update is downloading and installing. */
+  updating: boolean;
 }
 
 export function limitsOf(s: LimitState | undefined): ProviderLimits | null {

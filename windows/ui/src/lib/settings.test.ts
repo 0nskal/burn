@@ -8,7 +8,10 @@ import {
   setCardWindow,
   setShowsInPanel,
   setShowsInWidget,
+  setShelfExpanded,
+  setShelfRetentionDays,
   setShowsSpending,
+  setTab,
   setWidgetWindow,
   showsInPanel,
   showsInWidget,
@@ -78,5 +81,14 @@ describe("settings changes", () => {
 
   it("toggles spending", () => {
     expect(setShowsSpending(base(), false).showsSpending).toBe(false);
+  });
+
+  it("changes the tab, shelf size and retention without touching the rest", () => {
+    const s = base();
+    const copy = structuredClone(s);
+    expect(setTab(s, "shelf")).toEqual({ ...s, tab: "shelf" });
+    expect(setShelfExpanded(s, true)).toEqual({ ...s, shelfExpanded: true });
+    expect(setShelfRetentionDays(s, 0)).toEqual({ ...s, shelfRetentionDays: 0 });
+    expect(s).toEqual(copy);
   });
 });

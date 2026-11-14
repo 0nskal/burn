@@ -1,6 +1,6 @@
 // Demo data for working on the UI outside the app (same values as docs/screenshot.png).
 
-import type { Period, ProviderId, Settings, Snapshot, UsageBucket, UsageSummary } from "./types";
+import type { Period, ProviderId, Settings, ShelfItem, Snapshot, UsageBucket, UsageSummary } from "./types";
 
 const h = 3_600_000;
 const d = 24 * h;
@@ -21,6 +21,15 @@ const settings: Settings = {
   shelfRetentionDays: 7,
   trayOnly: false,
 };
+
+const SHAPES: [number, number][] = [[1920, 1080], [1280, 720], [2560, 1440], [800, 600], [1920, 1080], [1600, 900], [1366, 768], [1920, 1200], [1024, 768]];
+const shelf: ShelfItem[] = SHAPES.map(([width, height], i) => ({
+  path: `C:\\Users\\you\\Pictures\\Burn\\Screenshot ${i + 1}.png`,
+  thumb: `C:\\Users\\you\\Pictures\\Burn\\.thumbs\\${i + 1}.png`,
+  date: Date.now() - i * 37 * 60_000,
+  width,
+  height,
+}));
 
 function usage(period: Period): UsageSummary {
   const now = new Date();
@@ -89,8 +98,11 @@ export function demoSnapshot(kind: string | null, period: Period = "week"): Snap
     syncing: false,
     importPercent: null,
     hasUsage: true,
+    shelf,
     settings,
     launchAtLogin: true,
+    update: null,
+    updating: false,
     version: "0.1.0",
   };
   switch (kind) {
@@ -100,6 +112,8 @@ export function demoSnapshot(kind: string | null, period: Period = "week"): Snap
       return { ...base, limits: { ...base.limits, codex: { state: "signedOut" }, cursor: { state: "failed", message: "No connection", last: null } } };
     case "empty":
       return { ...base, connected: [], limits: {}, usage: null, hasUsage: false };
+    case "emptyShelf":
+      return { ...base, shelf: [] };
     case "importing":
       return { ...base, usage: null, hasUsage: false, syncing: true, importPercent: 42 };
     default:
