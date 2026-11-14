@@ -1,6 +1,8 @@
 name: Release
 
 # Actions → Release → Run workflow, or: gh workflow run release.yml -f version=v1.2.3
+# One GitHub release for both platforms: the Mac app's updater reads Burn.zip from releases/latest,
+# the Windows app's updater reads latest.json from there.
 on:
   workflow_dispatch:
     inputs:
@@ -9,30 +11,26 @@ on:
         required: true
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: release
 
 jobs:
-  release:
-    runs-on: macos-26
-    timeout-minutes: 30
+  check:
+    runs-on: ubuntu-latest
     env:
       TAG: ${{ inputs.version }}
-      GH_TOKEN: ${{ github.token }}
     steps:
       - name: Check the version and branch
         run: |
           [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::Version must look like v1.2.3, got: $TAG"; exit 1; }
           [[ "$GITHUB_REF" == refs/heads/main ]] || { echo "::error::Run the release from main"; exit 1; }
-
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0 # tags for the version, full history for the build number
+          fetch-depth: 0
           persist-credentials: false
-
-      - name: Tag locally
+      - name: Version is new and newer than the latest tag
         run: |
           if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
             echo "::error::$TAG already exists"
@@ -43,13 +41,108 @@ jobs:
             echo "::error::$TAG must be newer than $latest"
             exit 1
           fi
-          # The build reads the version from the latest tag. The release step creates the real tag on GitHub,
-          # so a failed build leaves nothing behind.
-          git tag "$TAG"
 
+  build-mac:
+    needs: check
+    runs-on: macos-26
+    timeout-minutes: 30
+    env:
+      TAG: ${{ inputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # tags for the version, full history for the build number
+          persist-credentials: false
+      # The build reads the version from the latest tag. The publish job creates the real tag on GitHub,
+      # so a failed build leaves nothing behind.
+      - name: Tag locally
+        run: git tag "$TAG"
       - name: Build Burn.dmg and Burn.zip
         run: scripts/package.sh
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: mac
+          path: |
+            dist/Burn.dmg
+            dist/Burn.zip
+          if-no-files-found: error
 
+  build-windows:
+    needs: check
+    runs-on: windows-latest
+    timeout-minutes: 40
+    env:
+      TAG: ${{ inputs.version }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: windows/ui/package-lock.json
+      - name: Rust toolchain
+        run: rustup toolchain install stable --profile minimal && rustup default stable
+      - name: Set the version
+        run: |
+          version="${TAG#v}"
+          sed -i "s/^version = \"0.1.0\"/version = \"$version\"/" windows/crates/burn-app/Cargo.toml
+          node -e '
+            const fs = require("fs"), p = "windows/crates/burn-app/tauri.conf.json";
+            const c = JSON.parse(fs.readFileSync(p));
+            c.version = process.argv[1];
+            fs.writeFileSync(p, JSON.stringify(c, null, 2));
+          ' "$version"
+      - name: UI dependencies
+        working-directory: windows/ui
+        run: npm ci
+      - name: Build the installer
+        working-directory: windows/crates/burn-app
+        env:
+          # Signs the update files (not the exe): the app only installs updates signed with this key.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+        run: ../../ui/node_modules/.bin/tauri build --bundles nsis
+      - name: Collect Burn-Setup.exe and latest.json
+        run: |
+          version="${TAG#v}"
+          dir=windows/target/release/bundle/nsis
+          mkdir -p out
+          cp "$dir"/*-setup.exe out/Burn-Setup.exe
+          sig="$(cat "$dir"/*-setup.exe.sig)"
+          url="https://github.com/${GITHUB_REPOSITORY}/releases/download/$TAG/Burn-Setup.exe"
+          node -e '
+            const [version, signature, url] = process.argv.slice(1);
+            const platform = { signature, url };
+            const out = { version, pub_date: new Date().toISOString(), platforms: { "windows-x86_64": platform, "windows-x86_64-nsis": platform } };
+            require("fs").writeFileSync("out/latest.json", JSON.stringify(out, null, 2));
+          ' "$version" "$sig" "$url"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: windows
+          path: |
+            out/Burn-Setup.exe
+            out/latest.json
+          if-no-files-found: error
+
+  publish:
+    needs: [build-mac, build-windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ inputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: dist
+          merge-multiple: true
       - name: Publish
         run: |
-          gh release create "$TAG" dist/Burn.dmg dist/Burn.zip --target "$GITHUB_SHA" --title "Burn $TAG" --generate-notes
+          gh release create "$TAG" dist/Burn.dmg dist/Burn.zip dist/Burn-Setup.exe dist/latest.json \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Burn $TAG" --generate-notes
