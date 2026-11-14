@@ -8,8 +8,9 @@ export function money(v: number): string {
 }
 
 export function tokens(v: number): string {
-  if (v >= 1e9) return `${(v / 1e9).toFixed(1)}B`;
-  if (v >= 1e6) return `${(v / 1e6).toFixed(0)}M`;
+  // Thresholds after rounding, so 999,600 reads "1M", not "1000K".
+  if (v >= 999_950_000) return `${(v / 1e9).toFixed(1)}B`;
+  if (v >= 999_500) return `${(v / 1e6).toFixed(0)}M`;
   if (v >= 1e3) return `${(v / 1e3).toFixed(0)}K`;
   return `${v}`;
 }

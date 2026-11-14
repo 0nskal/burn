@@ -52,10 +52,11 @@ pub fn quit(app: AppHandle) {
 }
 
 /// Puts shelf screenshots on the clipboard: one as image and file, several as files.
+/// Async, so reading and converting a 4K screenshot never blocks the UI thread.
 #[tauri::command]
-pub fn shelf_copy(app: AppHandle, model: State<'_, Arc<Model>>, paths: Vec<PathBuf>) -> bool {
+pub async fn shelf_copy(app: AppHandle, model: State<'_, Arc<Model>>, paths: Vec<PathBuf>) -> Result<bool, ()> {
     let dir = model.shelf_dir();
-    let paths: Vec<PathBuf> = paths.into_iter().filter(|p| p.parent() == Some(dir.as_path())).collect();
+    let paths: Vec<PathBuf> = paths.into_iter().filter(|p| p.parent() == Some(dir)).collect();
     #[cfg(windows)]
     {
         use burn_taskbar::win::clipboard::ImageFile;
@@ -68,27 +69,22 @@ pub fn shelf_copy(app: AppHandle, model: State<'_, Arc<Model>>, paths: Vec<PathB
                 Some(ImageFile { png, dib, path: Some(p.clone()) })
             })
             .collect();
-        if images.is_empty() {
-            return false;
-        }
-        let (tx, rx) = std::sync::mpsc::channel();
-        let _ = app.run_on_main_thread(move || {
-            let _ = tx.send(burn_taskbar::win::copy_images(&images));
-        });
-        rx.recv().unwrap_or(false)
+        Ok(copy_on_ui(&app, images))
     }
     #[cfg(not(windows))]
     {
         let _ = app;
-        !paths.is_empty()
+        Ok(!paths.is_empty())
     }
 }
 
-/// Copies an image of the current period's spend. False when there's nothing to share or it failed.
+/// Copies an image of `period`'s spend. False when there's nothing to share or it failed.
 #[tauri::command]
-pub async fn share_copy(app: AppHandle, model: State<'_, Arc<Model>>) -> Result<bool, ()> {
-    let Some(usage) = model.snapshot().usage else { return Ok(false) };
-    // Rendering takes a few milliseconds in release, longer in debug: off the UI thread (async command).
+pub async fn share_copy(app: AppHandle, model: State<'_, Arc<Model>>, period: Period) -> Result<bool, ()> {
+    let Some(usage) = model.usage_for(period) else { return Ok(false) };
+    if usage.cost <= 0.0 {
+        return Ok(false);
+    }
     let png = match burn_core::share::render_png(&usage, 2.0) {
         Ok(png) => png,
         Err(e) => {
@@ -99,12 +95,7 @@ pub async fn share_copy(app: AppHandle, model: State<'_, Arc<Model>>) -> Result<
     #[cfg(windows)]
     {
         use burn_taskbar::win::clipboard::ImageFile;
-        let image = ImageFile { dib: burn_core::shelf::png_to_dib(&png), png, path: None };
-        let (tx, rx) = std::sync::mpsc::channel();
-        let _ = app.run_on_main_thread(move || {
-            let _ = tx.send(burn_taskbar::win::copy_images(std::slice::from_ref(&image)));
-        });
-        Ok(rx.recv().unwrap_or(false))
+        Ok(copy_on_ui(&app, vec![ImageFile { dib: burn_core::shelf::png_to_dib(&png), png, path: None }]))
     }
     #[cfg(not(windows))]
     {
@@ -112,6 +103,19 @@ pub async fn share_copy(app: AppHandle, model: State<'_, Arc<Model>>) -> Result<
         let _ = app;
         Ok(std::fs::write(model.shelf_dir().with_file_name("share.png"), png).is_ok())
     }
+}
+
+/// Writes the clipboard on the UI thread, which owns the clipboard window, and waits for it.
+#[cfg(windows)]
+fn copy_on_ui(app: &AppHandle, images: Vec<burn_taskbar::win::clipboard::ImageFile>) -> bool {
+    if images.is_empty() {
+        return false;
+    }
+    let (tx, rx) = std::sync::mpsc::channel();
+    let _ = app.run_on_main_thread(move || {
+        let _ = tx.send(burn_taskbar::win::copy_images(&images));
+    });
+    rx.recv().unwrap_or(false)
 }
 
 /// Installs the newer release; Burn restarts into it.

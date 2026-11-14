@@ -96,6 +96,7 @@ pub struct Model {
     state: Mutex<State>,
     /// Captures run one after another so file names and the repeat check never race.
     shelf: Mutex<Shelf>,
+    shelf_dir: std::path::PathBuf,
     listener: Mutex<Option<Listener>>,
 }
 
@@ -125,6 +126,7 @@ impl Model {
                 synced_at: None,
                 refreshing_limits: false,
             }),
+            shelf_dir: Shelf::new(&paths.data_dir).dir().to_path_buf(),
             shelf: Mutex::new(Shelf::new(&paths.data_dir)),
             paths,
             listener: Mutex::new(None),
@@ -232,20 +234,25 @@ impl Model {
 
     // ---- Shelf -----------------------------------------------------------------------------
 
-    pub fn shelf_dir(&self) -> std::path::PathBuf {
-        lock(&self.shelf).dir().to_path_buf()
+    pub fn shelf_dir(&self) -> &std::path::Path {
+        &self.shelf_dir
+    }
+
+    /// Publishes the shelf's list while still holding the shelf lock, so a slower writer can't
+    /// replace a newer list with an older one.
+    fn publish_shelf(&self, items: Vec<ShelfItem>) {
+        lock(&self.state).snap.shelf = items;
     }
 
     /// Loads the shelf, drops what's past retention and makes missing previews. Blocking.
     pub fn load_shelf(&self) {
         let days = lock(&self.state).snap.settings.shelf_retention_days;
-        let items = {
+        {
             let mut shelf = lock(&self.shelf);
-            shelf.prune(days, std::time::SystemTime::now());
+            let items = shelf.prune(days, std::time::SystemTime::now());
             shelf.ensure_thumbs();
-            shelf.items()
-        };
-        lock(&self.state).snap.shelf = items;
+            self.publish_shelf(items);
+        }
         self.changed();
     }
 
@@ -253,7 +260,7 @@ impl Model {
     /// Keeps a copied image (PNG bytes). Blocking: hashes, writes the file and its preview.
     pub fn capture(&self, png: &[u8]) {
         let days = lock(&self.state).snap.settings.shelf_retention_days;
-        let items = {
+        {
             let mut shelf = lock(&self.shelf);
             match shelf.save(png, std::time::SystemTime::now()) {
                 Ok(Some(_)) => {}
@@ -263,23 +270,20 @@ impl Model {
                     return;
                 }
             }
-            shelf.prune(days, std::time::SystemTime::now());
-            shelf.items()
-        };
-        lock(&self.state).snap.shelf = items;
+            self.publish_shelf(shelf.prune(days, std::time::SystemTime::now()));
+        }
         self.changed();
     }
 
     pub fn delete_shelf(&self, paths: Option<&[std::path::PathBuf]>) {
-        let items = {
+        {
             let mut shelf = lock(&self.shelf);
             match paths {
                 Some(p) => shelf.delete(p),
                 None => shelf.clear(),
             }
-            shelf.items()
-        };
-        lock(&self.state).snap.shelf = items;
+            self.publish_shelf(shelf.items());
+        }
         self.changed();
     }
 
@@ -291,6 +295,11 @@ impl Model {
     pub fn set_updating(&self, on: bool) {
         lock(&self.state).snap.updating = on;
         self.changed();
+    }
+
+    /// A summary of `period` straight from the store (the snapshot may still hold the previous one).
+    pub fn usage_for(&self, period: Period) -> Option<UsageSummary> {
+        UsageDatabase::new(self.paths.db_path()).summary(period).ok()
     }
 
     pub fn set_launch_at_login(&self, on: bool) {

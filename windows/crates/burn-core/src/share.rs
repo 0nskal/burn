@@ -75,9 +75,10 @@ pub fn money(v: f64) -> String {
 /// "1.3B", "245M", "12K", "999".
 pub fn tokens(v: i64) -> String {
     let d = v as f64;
-    if d >= 1e9 {
+    // Thresholds after rounding, so 999,600 reads "1M", not "1000K".
+    if d >= 999_950_000.0 {
         format!("{:.1}B", d / 1e9)
-    } else if d >= 1e6 {
+    } else if d >= 999_500.0 {
         format!("{:.0}M", d / 1e6)
     } else if d >= 1e3 {
         format!("{:.0}K", d / 1e3)
@@ -411,6 +412,8 @@ mod tests {
         assert_eq!(tokens(12_345), "12K");
         assert_eq!(tokens(245_000_000), "245M");
         assert_eq!(tokens(1_300_000_000), "1.3B");
+        assert_eq!(tokens(999_600), "1M");
+        assert_eq!(tokens(999_970_000), "1.0B");
     }
 
     #[test]

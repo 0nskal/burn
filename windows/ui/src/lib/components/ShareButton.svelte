@@ -3,13 +3,16 @@
   import { onDestroy } from "svelte";
   import { shareCopy } from "../api";
   import { tip } from "../tip.svelte";
+  import type { Period } from "../types";
   import Icons from "./Icons.svelte";
+
+  let { period }: { period: Period } = $props();
 
   let done = $state(false);
   let timer: ReturnType<typeof setTimeout> | undefined;
 
   async function copy() {
-    if (!(await shareCopy())) return;
+    if (!(await shareCopy(period))) return;
     done = true;
     clearTimeout(timer);
     timer = setTimeout(() => (done = false), 1400);

@@ -56,6 +56,7 @@ export const shelfCopy = (paths: string[]) => ask<boolean>("shelf_copy", { paths
 /** Deletes the given screenshots, or all of them without `paths`. */
 export const shelfDelete = (paths?: string[]) => call("shelf_delete", paths ? { paths } : undefined);
 /** Copies an image of the current period's spend. Resolves whether it worked. */
-export const shareCopy = () => ask<boolean>("share_copy", undefined, true);
+/** Copies an image of `period`'s spend (the one on screen, even before its numbers arrive). */
+export const shareCopy = (period: Period) => ask<boolean>("share_copy", { period }, true);
 /** URL the webview can load a local file from (the shelf folder is allowed by the asset protocol). */
 export const fileUrl = (path: string) => convertFileSrc(path);

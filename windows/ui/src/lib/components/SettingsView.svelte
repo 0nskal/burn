@@ -33,6 +33,7 @@
   } from "../types";
   import CommandChip from "./CommandChip.svelte";
   import Glyph from "./Glyph.svelte";
+  import { BRAND } from "../level";
   import Icons from "./Icons.svelte";
   import RoundButton from "./RoundButton.svelte";
   import Segmented from "./Segmented.svelte";
@@ -135,7 +136,7 @@
         <span class="label">Color</span>
         <div class="swatches" role="radiogroup" aria-label="Color">
           {#each COLORS as c (c)}
-            {@const on = (s.cardColors[p] ?? "") === c}
+            {@const on = (s.cardColors[p] ?? BRAND[p]) === c}
             <button class="swatch" class:on role="radio" aria-checked={on} aria-label={cap(c)} use:tip={cap(c)} onclick={() => commit(setCardColor(s, p, c))}>
               <span class="dot" style:background="var(--{c})" style:color="var(--{c}-ink)">{#if on}<Icons name="check" size={8} />{/if}</span>
             </button>

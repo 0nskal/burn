@@ -318,16 +318,20 @@
               {/if}
             </div>
 
+          {#snippet trailing(updateShown: boolean)}
+            {#if snap!.update && updateShown}
+              <button class="pill-button prominent" disabled={snap!.updating} onclick={installUpdate} use:tip={`Update to Burn ${snap!.update}`}>
+                {snap!.updating ? "Updating…" : "Update"}
+              </button>
+            {/if}
+            <RoundButton icon="gear" label="Settings" onclick={() => (view = "settings")} />
+          {/snippet}
+
             <footer class="footer reveal" style:--i={cardRows.length + 2}>
               <div class="row-in" class:off={!usageRow} inert={!usageRow}>
                 <span class="status grow" class:hidden={!snap.hasUsage}>{snap.syncing ? "Syncing…" : synced(snap.lastSync, clock.now)}</span>
-                {#if snap.usage && snap.usage.cost > 0}<ShareButton />{/if}
-                {#if snap.update}
-                  <button class="pill-button prominent" disabled={snap.updating} onclick={installUpdate} use:tip={`Update to Burn ${snap.update}`}>
-                    {snap.updating ? "Updating…" : "Update"}
-                  </button>
-                {/if}
-                <RoundButton icon="gear" label="Settings" onclick={() => (view = "settings")} />
+                {#if snap.usage && snap.usage.cost > 0}<ShareButton period={snap.period} />{/if}
+                {@render trailing(true)}
               </div>
               <div class="row-in" class:off={!shelfRow} inert={!shelfRow}>
                 <span class="status grow">{selection.length > 0 ? `${selection.length} selected` : ""}</span>
@@ -338,12 +342,7 @@
                   <button class="pill-button" class:destructive={confirmingClear} onclick={clearAll}>{confirmingClear ? "Clear all?" : "Clear"}</button>
                 {/if}
                 <!-- Kept out of the way while screenshots are selected; the footer is full then. -->
-                {#if snap.update && selection.length === 0}
-                  <button class="pill-button prominent" disabled={snap.updating} onclick={installUpdate} use:tip={`Update to Burn ${snap.update}`}>
-                    {snap.updating ? "Updating…" : "Update"}
-                  </button>
-                {/if}
-                <RoundButton icon="gear" label="Settings" onclick={() => (view = "settings")} />
+                {@render trailing(selection.length === 0)}
               </div>
               <div class="row-in" class:off={!editRow} inert={!editRow}>
                 <span class="status grow">Drag to reorder</span>

@@ -69,10 +69,9 @@ impl Shelf {
     /// Stores a copied image (PNG bytes). Returns the new item, or None for a repeat of the newest one.
     pub fn save(&mut self, png: &[u8], now: SystemTime) -> std::io::Result<Option<ShelfItem>> {
         let hash = crate::util::hex(&Sha256::digest(png));
-        let newest_path = self.items().into_iter().next().map(|i| i.path);
         if let Some((path, h)) = &self.newest
-            && Some(path) == newest_path.as_ref()
             && *h == hash
+            && path.exists()
         {
             return Ok(None);
         }
@@ -145,22 +144,20 @@ impl Shelf {
     }
 
     /// Drops screenshots past the retention period (0 keeps them) and beyond `MAX_ITEMS`.
-    pub fn prune(&mut self, retention_days: u32, now: SystemTime) {
+    /// Returns what's left, newest first.
+    pub fn prune(&mut self, retention_days: u32, now: SystemTime) -> Vec<ShelfItem> {
         let cutoff = if retention_days > 0 {
             epoch_ms(now - Duration::from_secs(u64::from(retention_days) * 86_400))
         } else {
             i64::MIN
         };
-        let doomed: Vec<PathBuf> = self
-            .items()
-            .into_iter()
-            .enumerate()
-            .filter(|(i, item)| *i >= MAX_ITEMS || item.date < cutoff)
-            .map(|(_, item)| item.path)
-            .collect();
+        let (keep, doomed): (Vec<_>, Vec<_>) =
+            self.items().into_iter().enumerate().partition(|(i, item)| *i < MAX_ITEMS && item.date >= cutoff);
+        let doomed: Vec<PathBuf> = doomed.into_iter().map(|(_, item)| item.path).collect();
         if !doomed.is_empty() {
             self.delete(&doomed);
         }
+        keep.into_iter().map(|(_, item)| item).collect()
     }
 }
 
