@@ -9,6 +9,7 @@ pub mod parsers;
 pub mod paths;
 pub mod rates;
 pub mod settings;
+pub mod share;
 pub mod shelf;
 pub mod store;
 pub mod tier;
