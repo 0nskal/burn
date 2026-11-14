@@ -176,7 +176,16 @@ fn verify_t3(paths: &Paths) {
 
     let price = |r: &UsageRecord| {
         let t = &r.totals;
-        rates.cost(&r.model, r.rate_model.as_deref(), r.speed, t.uncached, t.cached, t.cache_creation, t.output, r.reported_cost)
+        rates.cost(
+            &r.model,
+            r.rate_model.as_deref(),
+            r.speed,
+            t.uncached,
+            t.cached,
+            t.cache_creation,
+            t.output,
+            r.reported_cost,
+        )
     };
     let mut tally: BTreeMap<String, Tally> = BTreeMap::new();
     for f in &files {
@@ -187,13 +196,21 @@ fn verify_t3(paths: &Paths) {
             continue;
         };
         let path = std::path::Path::new(&f.path);
-        let parsed = if f.provider == "claude" { parsers::parse_claude_records(path) } else { parsers::parse_codex_records(path) };
+        let parsed = if f.provider == "claude" {
+            parsers::parse_claude_records(path)
+        } else {
+            parsers::parse_codex_records(path)
+        };
         let Ok(burn) = parsed else {
             *t.field.entry("unreadable").or_default() += 1;
             continue;
         };
         let is_exact = meta.len() as i64 == f.size;
-        if is_exact { t.exact += 1 } else { t.prefix += 1 }
+        if is_exact {
+            t.exact += 1
+        } else {
+            t.prefix += 1
+        }
         t.t3_records += f.records.len();
         if (is_exact && burn.len() != f.records.len()) || (!is_exact && burn.len() < f.records.len()) {
             t.count_mismatch += 1;
@@ -204,18 +221,40 @@ fn verify_t3(paths: &Paths) {
         for (i, (a, b)) in f.records.iter().zip(&burn).enumerate() {
             t.compared += 1;
             let mut bad = Vec::new();
-            if a.ts_ms != b.ts_ms { bad.push("ts") }
-            if a.model != b.model { bad.push("model") }
-            if a.session_id != b.session_id { bad.push("session") }
-            if a.totals != b.totals { bad.push("tokens") }
-            if a.speed != b.speed { bad.push("speed") }
-            if a.reported_cost != b.reported_cost { bad.push("reportedCost") }
-            if a.dedupe_key != b.dedupe_key { bad.push("dedupeKey") }
+            if a.ts_ms != b.ts_ms {
+                bad.push("ts")
+            }
+            if a.model != b.model {
+                bad.push("model")
+            }
+            if a.session_id != b.session_id {
+                bad.push("session")
+            }
+            if a.totals != b.totals {
+                bad.push("tokens")
+            }
+            if a.speed != b.speed {
+                bad.push("speed")
+            }
+            if a.reported_cost != b.reported_cost {
+                bad.push("reportedCost")
+            }
+            if a.dedupe_key != b.dedupe_key {
+                bad.push("dedupeKey")
+            }
             for k in &bad {
                 *t.field.entry(k).or_default() += 1;
             }
             if !bad.is_empty() && t.examples.len() < 8 {
-                t.examples.push(format!("{} {}#{i}: T3 {:?} {:?} | Burn {:?} {:?}", bad.join(","), f.path, a.totals, a.speed, b.totals, b.speed));
+                t.examples.push(format!(
+                    "{} {}#{i}: T3 {:?} {:?} | Burn {:?} {:?}",
+                    bad.join(","),
+                    f.path,
+                    a.totals,
+                    a.speed,
+                    b.totals,
+                    b.speed
+                ));
             }
             t.cost_t3 += price(a);
             t.cost_burn += price(b);
@@ -228,7 +267,10 @@ fn verify_t3(paths: &Paths) {
             "== {p}: {} transcripts in T3 cache ({} size-identical, {} grown since, {} deleted from disk)",
             t.files, t.exact, t.prefix, t.missing
         );
-        println!("   records: T3 {}, compared {}, file count mismatches {}", t.t3_records, t.compared, t.count_mismatch);
+        println!(
+            "   records: T3 {}, compared {}, file count mismatches {}",
+            t.t3_records, t.compared, t.count_mismatch
+        );
         let fields: Vec<String> = t.field.iter().map(|(k, v)| format!("{k}={v}")).collect();
         println!("   field mismatches: {}", if fields.is_empty() { "none".into() } else { fields.join(" ") });
         println!("   tokens: T3 {} Burn {}", t.tokens_t3, t.tokens_burn);

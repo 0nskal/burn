@@ -45,8 +45,26 @@ CREATE VIEW IF NOT EXISTS daily AS
 ";
 
 pub const COLUMNS: [&str; 20] = [
-    "id", "provider", "model", "ts_ms", "ts", "day", "session_id", "project", "input", "cache_read", "cache_write",
-    "output", "reasoning", "speed", "reported_cost", "rate_model", "tier_turn", "cost_usd", "origin", "source",
+    "id",
+    "provider",
+    "model",
+    "ts_ms",
+    "ts",
+    "day",
+    "session_id",
+    "project",
+    "input",
+    "cache_read",
+    "cache_write",
+    "output",
+    "reasoning",
+    "speed",
+    "reported_cost",
+    "rate_model",
+    "tier_turn",
+    "cost_usd",
+    "origin",
+    "source",
 ];
 
 pub fn open_rw(path: &Path) -> rusqlite::Result<Connection> {

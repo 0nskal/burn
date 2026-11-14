@@ -69,7 +69,11 @@ pub fn run(paths: &Paths, progress: &(dyn Fn(ImportProgress) + Sync)) -> Result<
     run_with_rates(paths, &rates, progress)
 }
 
-pub fn run_with_rates(paths: &Paths, rates: &ModelRates, progress: &(dyn Fn(ImportProgress) + Sync)) -> Result<ImportResult> {
+pub fn run_with_rates(
+    paths: &Paths,
+    rates: &ModelRates,
+    progress: &(dyn Fn(ImportProgress) + Sync),
+) -> Result<ImportResult> {
     let db_path = paths.db_path();
     if let Some(dir) = db_path.parent() {
         fs::create_dir_all(dir).with_context(|| format!("create {}", dir.display()))?;
@@ -161,7 +165,8 @@ fn import_files(
     // for retained history), and never override log rows. Their rows depend only on the cache files and on which
     // log paths exist, so nothing is re-read when neither changed and no log was (re)parsed.
     let mut covered: HashSet<String> = all.iter().map(|j| j.key.clone()).collect();
-    let mut sig_parts: Vec<String> = caches.iter().map(|c| format!("{}|{}|{}", c.key, c.size, swift_double(c.mtime))).collect();
+    let mut sig_parts: Vec<String> =
+        caches.iter().map(|c| format!("{}|{}|{}", c.key, c.size, swift_double(c.mtime))).collect();
     sig_parts.push("--".into());
     let mut sorted: Vec<&String> = covered.iter().collect();
     sorted.sort();
@@ -245,7 +250,9 @@ fn migrate(conn: &mut Connection) -> Result<()> {
         conn.query_row("SELECT value FROM meta WHERE key='schema_version'", [], |r| r.get(0)).optional()?;
     if version.as_deref() != Some(SCHEMA_VERSION) {
         let tx = conn.transaction()?;
-        tx.execute_batch("DROP VIEW IF EXISTS daily; DROP TABLE IF EXISTS usage; DROP TABLE IF EXISTS files; DELETE FROM meta")?;
+        tx.execute_batch(
+            "DROP VIEW IF EXISTS daily; DROP TABLE IF EXISTS usage; DROP TABLE IF EXISTS files; DELETE FROM meta",
+        )?;
         tx.execute_batch(SCHEMA)?;
         tx.execute("INSERT INTO meta VALUES ('schema_version', ?)", [SCHEMA_VERSION])?;
         tx.commit()?;
@@ -296,7 +303,8 @@ fn resolve_tiers(conn: &mut Connection, paths: &Paths, rates: &ModelRates) -> Re
         digest(&parts)
     };
     let all: Vec<&Pending> = pending.iter().collect();
-    let stored: Option<String> = conn.query_row("SELECT value FROM meta WHERE key='tier_sig'", [], |r| r.get(0)).optional()?;
+    let stored: Option<String> =
+        conn.query_row("SELECT value FROM meta WHERE key='tier_sig'", [], |r| r.get(0)).optional()?;
     if stored.as_deref() == Some(signature(&all).as_str()) {
         return Ok(());
     }
@@ -323,7 +331,8 @@ fn resolve_tiers(conn: &mut Connection, paths: &Paths, rates: &ModelRates) -> Re
 
 /// Recomputes every stored cost when the rate table (or T3's price overrides) changed since the last import.
 fn reprice(conn: &mut Connection, rates: &ModelRates) -> Result<()> {
-    let stored: Option<String> = conn.query_row("SELECT value FROM meta WHERE key='rates_hash'", [], |r| r.get(0)).optional()?;
+    let stored: Option<String> =
+        conn.query_row("SELECT value FROM meta WHERE key='rates_hash'", [], |r| r.get(0)).optional()?;
     if stored.as_deref() == Some(rates.hash.as_str()) {
         return Ok(());
     }
@@ -448,10 +457,10 @@ fn discover(root: &Path, kind: Kind) -> Vec<Job> {
             let Ok(ft) = e.file_type() else { continue };
             if ft.is_dir() {
                 stack.push(path);
-            } else if path.extension().is_some_and(|x| x == "jsonl") {
-                if let Some((size, mtime)) = file_stat(&path) {
-                    out.push(Job { key: path.to_string_lossy().into_owned(), path, size, mtime, kind });
-                }
+            } else if path.extension().is_some_and(|x| x == "jsonl")
+                && let Some((size, mtime)) = file_stat(&path)
+            {
+                out.push(Job { key: path.to_string_lossy().into_owned(), path, size, mtime, kind });
             }
         }
     }

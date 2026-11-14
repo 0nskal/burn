@@ -21,11 +21,8 @@ impl Paths {
     /// Real locations for this user, with env overrides.
     pub fn detect() -> Paths {
         let home = env::var_os("BURN_HOME").map(PathBuf::from).unwrap_or_else(default_home);
-        let app_data = if env::var_os("BURN_HOME").is_some() {
-            default_app_data_in(&home)
-        } else {
-            default_app_data(&home)
-        };
+        let app_data =
+            if env::var_os("BURN_HOME").is_some() { default_app_data_in(&home) } else { default_app_data(&home) };
         let data_dir = env::var_os("BURN_DATA_DIR").map(PathBuf::from).unwrap_or_else(|| default_data_dir(&home));
         Paths { home, data_dir, app_data, db: env::var_os("BURN_DB").map(PathBuf::from) }
     }
