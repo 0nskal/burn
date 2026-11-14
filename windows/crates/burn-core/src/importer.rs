@@ -422,11 +422,7 @@ fn digest(parts: &[String]) -> String {
         h.update(p.as_bytes());
         h.update([0u8]);
     }
-    hex(&h.finalize())
-}
-
-pub(crate) fn hex(bytes: &[u8]) -> String {
-    bytes.iter().map(|b| format!("{b:02x}")).collect()
+    crate::util::hex(&h.finalize())
 }
 
 /// Shortest round-trip form, like Swift's `"\(double)"` (only used inside signatures).

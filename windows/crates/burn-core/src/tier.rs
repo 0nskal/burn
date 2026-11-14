@@ -20,15 +20,23 @@ pub fn db_path(paths: &Paths) -> PathBuf {
     paths.t3_userdata().join("statev2.sqlite")
 }
 
-/// Size and mtime of T3's database; changes when T3 recorded anything new.
+/// Size and mtime of T3's database and its WAL; changes when T3 recorded anything new (T3 writes to the
+/// WAL first, the main file only changes on a checkpoint).
 pub fn db_stamp(paths: &Paths) -> String {
-    match std::fs::metadata(db_path(paths)) {
-        Ok(m) => {
-            let t = m.modified().ok().and_then(|t| t.duration_since(UNIX_EPOCH).ok()).unwrap_or_default();
-            format!("{}.{}.{}", m.len(), t.as_secs(), t.subsec_nanos())
-        }
-        Err(_) => "none".into(),
-    }
+    let db = db_path(paths);
+    let mut wal = db.clone().into_os_string();
+    wal.push("-wal");
+    [db, PathBuf::from(wal)]
+        .iter()
+        .map(|p| match std::fs::metadata(p) {
+            Ok(m) => {
+                let t = m.modified().ok().and_then(|t| t.duration_since(UNIX_EPOCH).ok()).unwrap_or_default();
+                format!("{}.{}.{}", m.len(), t.as_secs(), t.subsec_nanos())
+            }
+            Err(_) => "none".into(),
+        })
+        .collect::<Vec<_>>()
+        .join("|")
 }
 
 const SQL: &str = "

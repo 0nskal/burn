@@ -23,7 +23,12 @@ impl Paths {
         let home = env::var_os("BURN_HOME").map(PathBuf::from).unwrap_or_else(default_home);
         let app_data =
             if env::var_os("BURN_HOME").is_some() { default_app_data_in(&home) } else { default_app_data(&home) };
-        let data_dir = env::var_os("BURN_DATA_DIR").map(PathBuf::from).unwrap_or_else(|| default_data_dir(&home));
+        let data_dir = match (env::var_os("BURN_DATA_DIR"), env::var_os("BURN_HOME")) {
+            (Some(dir), _) => PathBuf::from(dir),
+            // A redirected home (fixtures) must never write into the real store.
+            (None, Some(_)) => home.join(".burn-dev"),
+            (None, None) => default_data_dir(&home),
+        };
         Paths { home, data_dir, app_data, db: env::var_os("BURN_DB").map(PathBuf::from) }
     }
 

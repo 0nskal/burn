@@ -3,7 +3,7 @@
 mod claude;
 mod codex;
 mod cursor;
-mod http;
+pub(crate) mod http;
 
 use crate::model::{LimitsError, ProviderId, ProviderLimits};
 use crate::paths::Paths;

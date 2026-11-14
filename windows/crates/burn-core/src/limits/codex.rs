@@ -137,7 +137,7 @@ fn from_sessions(root: &Path) -> Option<ProviderLimits> {
     for (path, _) in files.into_iter().take(5) {
         let Ok(data) = std::fs::read(&path) else { continue };
         for line in data.rsplit(|b| *b == b'\n') {
-            if !contains(line, b"\"rate_limits\"") {
+            if memchr::memmem::find(line, b"\"rate_limits\"").is_none() {
                 continue;
             }
             if let Some(l) = parse_codex_snapshot(line, now) {
@@ -146,10 +146,6 @@ fn from_sessions(root: &Path) -> Option<ProviderLimits> {
         }
     }
     None
-}
-
-fn contains(hay: &[u8], needle: &[u8]) -> bool {
-    hay.windows(needle.len()).any(|w| w == needle)
 }
 
 pub(crate) fn parse_codex_snapshot(line: &[u8], now: i64) -> Option<ProviderLimits> {

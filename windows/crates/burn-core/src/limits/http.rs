@@ -11,25 +11,29 @@ static AGENT: LazyLock<ureq::Agent> = LazyLock::new(|| {
     ureq::Agent::new_with_config(config)
 });
 
-fn read(result: Result<ureq::http::Response<ureq::Body>, ureq::Error>) -> Result<(u16, Vec<u8>), LimitsError> {
+fn read(
+    result: Result<ureq::http::Response<ureq::Body>, ureq::Error>,
+    limit: u64,
+) -> Result<(u16, Vec<u8>), LimitsError> {
     let mut resp = result.map_err(|e| LimitsError::Network(e.to_string()))?;
     let status = resp.status().as_u16();
-    let body = resp
-        .body_mut()
-        .with_config()
-        .limit(10 * 1024 * 1024)
-        .read_to_vec()
-        .map_err(|e| LimitsError::Network(e.to_string()))?;
+    let body =
+        resp.body_mut().with_config().limit(limit).read_to_vec().map_err(|e| LimitsError::Network(e.to_string()))?;
     Ok((status, body))
 }
 
 /// GET with headers. Returns the status and body; non-2xx is not an error.
 pub fn get(url: &str, headers: &[(&str, &str)]) -> Result<(u16, Vec<u8>), LimitsError> {
+    get_limited(url, headers, 10 * 1024 * 1024)
+}
+
+/// GET that accepts a body of up to `limit` bytes.
+pub fn get_limited(url: &str, headers: &[(&str, &str)], limit: u64) -> Result<(u16, Vec<u8>), LimitsError> {
     let mut req = AGENT.get(url);
     for (k, v) in headers {
         req = req.header(*k, *v);
     }
-    read(req.call())
+    read(req.call(), limit)
 }
 
 /// POST with headers and a JSON body.
@@ -38,7 +42,7 @@ pub fn post_json(url: &str, headers: &[(&str, &str)], body: &str) -> Result<(u16
     for (k, v) in headers {
         req = req.header(*k, *v);
     }
-    read(req.send(body))
+    read(req.send(body), 10 * 1024 * 1024)
 }
 
 pub fn parse_json_object(body: &[u8]) -> Result<Value, LimitsError> {
@@ -66,12 +70,13 @@ pub fn now_ms() -> i64 {
     chrono::Utc::now().timestamp_millis()
 }
 
-/// Like Swift's `capitalized`: first letter of each word upper, the rest lower.
+/// Like Swift's `capitalized`: first letter of each word upper, the rest lower. Anything but a letter or an
+/// apostrophe ends a word ("pro_plus" -> "Pro_Plus", "x1y" -> "X1Y", "o'neil" -> "O'neil").
 pub fn capitalized(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     let mut start = true;
     for c in s.chars() {
-        if c.is_alphanumeric() {
+        if c.is_alphabetic() || c == '\'' {
             if start {
                 out.extend(c.to_uppercase());
             } else {
@@ -128,5 +133,6 @@ mod tests {
         assert_eq!(json_f64(Some(&json!(3))), Some(3.0));
         assert_eq!(json_f64(Some(&json!(null))), None);
         assert_eq!(capitalized("pro_plus max"), "Pro_Plus Max");
+        assert_eq!(capitalized("x1y o'neil MAX"), "X1Y O'neil Max");
     }
 }

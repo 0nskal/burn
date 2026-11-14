@@ -10,6 +10,7 @@ pub mod paths;
 pub mod rates;
 pub mod store;
 pub mod tier;
+mod util;
 
 pub use model::*;
 pub use paths::Paths;

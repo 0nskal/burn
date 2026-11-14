@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::sync::{Arc, LazyLock, Mutex};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Per-token prices of one speed tier.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -48,7 +48,7 @@ impl ModelRate {
 
 #[derive(Clone, Debug, Default)]
 pub struct ModelRates {
-    pub table: HashMap<String, ModelRate>,
+    pub table: Arc<HashMap<String, ModelRate>>,
     pub overrides: HashMap<String, TokenRates>,
     pub aliases: HashMap<String, String>,
     /// Identifies the table, overrides and aliases; a change means stored costs are stale.
@@ -178,10 +178,10 @@ impl ModelRates {
     /// A bare LiteLLM document plus the settings found under `paths` (tests and fixtures).
     pub fn from_document(doc: &Value, paths: &Paths) -> ModelRates {
         let digest = Sha256::digest(serde_json::to_vec(doc).unwrap_or_default()).to_vec();
-        let table = match doc {
+        let table = Arc::new(match doc {
             Value::Object(m) => parse_table(m),
             _ => HashMap::new(),
-        };
+        });
         make(&FileEntry { table, digest, fetched_at_ms: 0.0 }, paths)
     }
 }
@@ -352,7 +352,7 @@ fn read_settings(paths: &Paths) -> Settings {
 
 /// A parsed rates file: the table plus a digest of the raw bytes (cheap, unlike re-serializing the document).
 struct FileEntry {
-    table: HashMap<String, ModelRate>,
+    table: Arc<HashMap<String, ModelRate>>,
     digest: Vec<u8>,
     fetched_at_ms: f64,
 }
@@ -377,7 +377,7 @@ fn parse_entry(data: &[u8], wrapped: bool) -> Option<FileEntry> {
     } else {
         parse_table(&root)
     };
-    Some(FileEntry { table, digest: Sha256::digest(data).to_vec(), fetched_at_ms })
+    Some(FileEntry { table: Arc::new(table), digest: Sha256::digest(data).to_vec(), fetched_at_ms })
 }
 
 fn read_entry(path: &Path, wrapped: bool) -> Option<Arc<FileEntry>> {
@@ -403,7 +403,7 @@ fn make(entry: &FileEntry, paths: &Paths) -> ModelRates {
     h.update(&entry.digest);
     h.update(&s.raw);
     h.update(BUILTIN_VERSION.as_bytes());
-    let hash: String = h.finalize().iter().map(|b| format!("{b:02x}")).collect();
+    let hash = crate::util::hex(&h.finalize());
     ModelRates { table: entry.table.clone(), overrides: s.overrides, aliases: s.aliases, hash }
 }
 
@@ -422,13 +422,25 @@ fn read_cache(path: &Path, paths: &Paths) -> Option<ModelRates> {
     Some(make(&e, paths))
 }
 
+/// Last failed download; offline, every import would otherwise wait up to 15 s for it again.
+static LAST_FAILED_FETCH: Mutex<Option<SystemTime>> = Mutex::new(None);
+const FETCH_RETRY_SECS: u64 = 3600;
+
 fn fetch() -> Option<Vec<u8>> {
-    let agent: ureq::Agent = ureq::Agent::config_builder().timeout_global(Some(Duration::from_secs(15))).build().into();
-    let mut resp = agent.get(SOURCE_URL).call().ok()?;
-    if resp.status().as_u16() != 200 {
+    let mut failed = LAST_FAILED_FETCH.lock().ok()?;
+    if failed.is_some_and(|t| t.elapsed().is_ok_and(|e| e.as_secs() < FETCH_RETRY_SECS)) {
         return None;
     }
-    resp.body_mut().with_config().limit(64 * 1024 * 1024).read_to_vec().ok()
+    match crate::limits::http::get_limited(SOURCE_URL, &[], 64 * 1024 * 1024) {
+        Ok((200, body)) => {
+            *failed = None;
+            Some(body)
+        }
+        _ => {
+            *failed = Some(SystemTime::now());
+            None
+        }
+    }
 }
 
 fn write_atomic(path: &Path, data: &[u8]) -> std::io::Result<()> {

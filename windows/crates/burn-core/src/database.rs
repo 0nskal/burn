@@ -21,21 +21,23 @@ impl UsageDatabase {
         &self.path
     }
 
+    /// None until the first import has created the `usage` table.
     fn open(&self) -> Result<Option<Connection>> {
         if !self.path.exists() {
             return Ok(None);
         }
-        Ok(Some(store::open_ro(&self.path)?))
+        let db = store::open_ro(&self.path)?;
+        let ready = db
+            .query_row("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'usage'", [], |_| Ok(()))
+            .optional()?
+            .is_some();
+        Ok(ready.then_some(db))
     }
 
     /// True once at least one usage record has been imported.
     pub fn has_any_usage(&self) -> Result<bool> {
         let Some(db) = self.open()? else { return Ok(false) };
-        match db.query_row("SELECT 1 FROM usage LIMIT 1", [], |_| Ok(())).optional() {
-            Ok(found) => Ok(found.is_some()),
-            Err(e) if e.to_string().contains("no such table") => Ok(false),
-            Err(e) => Err(e.into()),
-        }
+        Ok(db.query_row("SELECT 1 FROM usage LIMIT 1", [], |_| Ok(())).optional()?.is_some())
     }
 
     pub fn summary(&self, period: Period) -> Result<UsageSummary> {
