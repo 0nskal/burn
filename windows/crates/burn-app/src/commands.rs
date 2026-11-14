@@ -84,6 +84,36 @@ pub fn shelf_copy(app: AppHandle, model: State<'_, Arc<Model>>, paths: Vec<PathB
     }
 }
 
+/// Copies an image of the current period's spend. False when there's nothing to share or it failed.
+#[tauri::command]
+pub async fn share_copy(app: AppHandle, model: State<'_, Arc<Model>>) -> Result<bool, ()> {
+    let Some(usage) = model.snapshot().usage else { return Ok(false) };
+    // Rendering takes a few milliseconds in release, longer in debug: off the UI thread (async command).
+    let png = match burn_core::share::render_png(&usage, 2.0) {
+        Ok(png) => png,
+        Err(e) => {
+            crate::log!("share card failed: {e:#}");
+            return Ok(false);
+        }
+    };
+    #[cfg(windows)]
+    {
+        use burn_taskbar::win::clipboard::ImageFile;
+        let image = ImageFile { dib: burn_core::shelf::png_to_dib(&png), png, path: None };
+        let (tx, rx) = std::sync::mpsc::channel();
+        let _ = app.run_on_main_thread(move || {
+            let _ = tx.send(burn_taskbar::win::copy_images(std::slice::from_ref(&image)));
+        });
+        Ok(rx.recv().unwrap_or(false))
+    }
+    #[cfg(not(windows))]
+    {
+        // Development off Windows: write it next to the store to look at.
+        let _ = app;
+        Ok(std::fs::write(model.shelf_dir().with_file_name("share.png"), png).is_ok())
+    }
+}
+
 /// Deletes the given screenshots, or all of them without `paths`.
 #[tauri::command]
 pub fn shelf_delete(model: State<'_, Arc<Model>>, paths: Option<Vec<PathBuf>>) {

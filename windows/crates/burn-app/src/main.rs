@@ -53,6 +53,7 @@ fn main() {
             commands::set_launch_at_login,
             commands::quit,
             commands::shelf_copy,
+            commands::share_copy,
             commands::shelf_delete,
             commands::content_resized,
         ])
