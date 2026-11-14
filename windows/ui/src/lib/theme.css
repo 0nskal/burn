@@ -126,6 +126,41 @@ button:focus-visible {
     inset 0 0 0 0.5px var(--hairline);
 }
 
+/* Pill buttons (Bento.swift `PillButtonStyle`); hit area taller than the pill. */
+.pill-button {
+  position: relative;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: var(--neutral);
+  font-size: 12px;
+  white-space: nowrap;
+  transition:
+    background 150ms ease-out,
+    opacity 120ms ease-out,
+    transform 120ms ease-out;
+}
+.pill-button::after {
+  content: "";
+  position: absolute;
+  inset: -6px 0;
+}
+.pill-button:hover {
+  background: var(--neutral-hover);
+}
+.pill-button.prominent {
+  background: var(--text);
+  color: var(--base);
+  font-weight: 700;
+}
+.pill-button.prominent:hover {
+  opacity: 0.9;
+}
+.pill-button:active {
+  opacity: 0.75;
+  transform: scale(0.97);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

@@ -1,6 +1,6 @@
 <!-- Small filled glyphs standing in for the SF Symbols the Mac app uses. -->
 <script lang="ts">
-  let { name, size = 10 }: { name: "alert-circle" | "alert-triangle" | "gear" | "share" | "check" | "plus"; size?: number } = $props();
+  let { name, size = 10 }: { name: "alert-circle" | "alert-triangle" | "gear" | "share" | "check" | "plus" | "close" | "chevron-left" | "chevron-right"; size?: number } = $props();
 </script>
 
 <svg width={size} height={size} viewBox="0 0 16 16" aria-hidden="true">
@@ -25,6 +25,12 @@
     <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="m3 8.5 3.2 3.2L13 4.8" />
   {:else if name === "plus"}
     <path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" d="M8 3v10M3 8h10" />
+  {:else if name === "close"}
+    <path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" d="m3.5 3.5 9 9m0-9-9 9" />
+  {:else if name === "chevron-left"}
+    <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="m10 3-5 5 5 5" />
+  {:else if name === "chevron-right"}
+    <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="m6 3 5 5-5 5" />
   {/if}
 </svg>
 

@@ -1,6 +1,6 @@
 // Port of `PanelLayout.swift` and the panel parts of `AppModel.swift`.
 
-import { limitsOf, PROVIDERS, type CardSize, type LimitWindow, type PanelLayout, type ProviderId, type ProviderLimits, type Snapshot } from "./types";
+import { limitsOf, PROVIDERS, type CardSize, type LimitWindow, type PanelLayout, type ProviderId, type ProviderLimits, type Settings, type Snapshot } from "./types";
 
 export const HIGHEST = "highest";
 
@@ -66,7 +66,7 @@ export function order(saved: string[]): ProviderId[] {
   return [...out, ...PROVIDERS.filter((p) => !out.includes(p))];
 }
 
-function defaultWindow(p: ProviderId): string {
+export function defaultWindow(p: ProviderId): string {
   // The 5-hour window is the one that actually blocks work; Cursor's API bucket is often full while the plan is fine.
   return p === "claude" ? "5h" : p === "cursor" ? "total" : HIGHEST;
 }
@@ -84,8 +84,17 @@ export function cardWindow(snap: Snapshot, limits: ProviderLimits): LimitWindow 
   return pickWindow(snap.settings.cardWindows[limits.provider] ?? defaultWindow(limits.provider), limits);
 }
 
+export function customSizeOf(settings: Settings, p: ProviderId): CardSize {
+  return settings.cardSizes[p] ?? (p === "claude" ? "l" : "m");
+}
+
 export function customSize(snap: Snapshot, p: ProviderId): CardSize {
-  return snap.settings.cardSizes[p] ?? (p === "claude" ? "l" : "m");
+  return customSizeOf(snap.settings, p);
+}
+
+/** The providers that get a full card, in the panel's order. */
+export function cardProviders(snap: Snapshot): ProviderId[] {
+  return panelProviders(snap).filter((p) => hasCard(snap, p));
 }
 
 /** Every provider in the panel's order, hidden and signed out ones included. */

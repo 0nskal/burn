@@ -6,7 +6,16 @@
     label,
     onSelect,
     ariaLabel,
-  }: { options: T[]; selected: T; label: (v: T) => string; onSelect: (v: T) => void; ariaLabel: string } = $props();
+    tone = "lime",
+  }: {
+    options: T[];
+    selected: T;
+    label: (v: T) => string;
+    onSelect: (v: T) => void;
+    ariaLabel: string;
+    /** lime: on the spend block; neutral: on a settings row; floating: over a card while editing. */
+    tone?: "lime" | "neutral" | "floating";
+  } = $props();
 
   let buttons: HTMLButtonElement[] = $state([]);
   let thumb = $state<{ left: number; width: number } | null>(null);
@@ -22,7 +31,7 @@
   });
 </script>
 
-<div class="track" role="radiogroup" aria-label={ariaLabel}>
+<div class="track {tone}" role="radiogroup" aria-label={ariaLabel}>
   {#if thumb}
     <span class="thumb" class:ready style:transform="translateX({thumb.left}px)" style:width="{thumb.width}px"></span>
   {/if}
@@ -43,7 +52,24 @@
     display: flex;
     padding: 2px;
     border-radius: 999px;
-    background: color-mix(in srgb, var(--lime-ink) 8%, transparent);
+    --track: color-mix(in srgb, var(--lime-ink) 8%, transparent);
+    --thumb: var(--lime-ink);
+    --on: var(--lime);
+    --off: color-mix(in srgb, var(--lime-ink) 70%, transparent);
+    background: var(--track);
+  }
+  .neutral {
+    --track: color-mix(in srgb, var(--text) 6%, transparent);
+    --thumb: var(--raised);
+    --on: var(--text);
+    --off: var(--secondary);
+  }
+  .floating {
+    --track: var(--surface);
+    --thumb: var(--text);
+    --on: var(--base);
+    --off: var(--secondary);
+    box-shadow: 0 2px 6px var(--shadow);
   }
   .thumb {
     position: absolute;
@@ -51,7 +77,7 @@
     left: 0;
     height: 22px;
     border-radius: 999px;
-    background: var(--lime-ink);
+    background: var(--thumb);
   }
   .thumb.ready {
     transition:
@@ -64,11 +90,17 @@
     padding: 0 8px;
     border-radius: 999px;
     font-size: 11px;
-    color: color-mix(in srgb, var(--lime-ink) 70%, transparent);
+    color: var(--off);
     transition: color 150ms ease-out;
   }
+  /* Taller to hit than to look at. */
+  button::after {
+    content: "";
+    position: absolute;
+    inset: -9px 0;
+  }
   button.selected {
-    color: var(--lime);
+    color: var(--on);
     font-weight: 700;
   }
 </style>
