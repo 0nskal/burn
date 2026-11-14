@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/burn-core", "crates/burn-taskbar"]
+members = ["crates/burn-app", "crates/burn-core", "crates/burn-taskbar"]
 resolver = "3"
 
 [workspace.package]
