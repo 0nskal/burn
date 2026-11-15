@@ -17,6 +17,7 @@
     showsInPanel,
     showsInWidget,
     widgetWindow,
+    windowOptions,
   } from "../settings";
   import { tip } from "../tip.svelte";
   import {
@@ -84,19 +85,7 @@
 
   const signedIn = (p: ProviderId) => snap.connected.includes(p) && snap.limits[p]?.state !== "signedOut";
 
-  /** `highest` plus every window the provider reports; null when there is nothing to choose. */
-  function windowOptions(p: ProviderId, current: string, combo = false) {
-    const windows = limitsOf(snap.limits[p])?.windows ?? [];
-    if (windows.length < 2) return null;
-    const options = [{ id: "highest", label: "Most used" }, ...windows.map((w) => ({ id: w.id, label: w.label }))];
-    // The widget can show the 5-hour and weekly windows side by side.
-    if (combo && windows.some((w) => w.id === "5h") && windows.some((w) => w.id === "week")) {
-      options.splice(1, 0, { id: "5h,week", label: "5h + Week" });
-    }
-    // `all` leaves out minor caps, so offer it only when that still means more than two windows.
-    if (combo && windows.filter((w) => !w.minor).length > 2) options.splice(1, 0, { id: "all", label: "All" });
-    return { value: options.some((o) => o.id === current) ? current : "highest", options };
-  }
+  const windowsOf = (p: ProviderId) => limitsOf(snap.limits[p])?.windows ?? [];
 
   /** The size the card has under the current layout. */
   function sizeOf(p: ProviderId): CardSize {
@@ -120,7 +109,7 @@
 <div class="settings">
   {#if provider}
     {@const p = provider}
-    {@const main = windowOptions(p, cardWindowId(s, p))}
+    {@const main = windowOptions(windowsOf(p), cardWindowId(s, p))}
     {@render header(PROVIDER_NAME[p], () => (provider = null), p)}
 
     <div class="group">
@@ -215,7 +204,7 @@
       <div class="item"><ToggleRow label="Tray icon instead of widget" checked={s.trayOnly} onChange={(on) => commit(setTrayOnly(s, on))} /></div>
       <!-- The tray icon shows no numbers, so what the widget shows only matters without it. -->
       {#each s.trayOnly ? [] : snap.connected as p (p)}
-        {@const win = windowOptions(p, widgetWindow(s, p), true)}
+        {@const win = windowOptions(windowsOf(p), widgetWindow(s, p), true)}
         <div class="item row tight">
           <button class="row link open" tabindex="-1" aria-hidden="true" onclick={() => commit(setShowsInWidget(s, p, !showsInWidget(s, p)))}>
             <Glyph provider={p} size={12} />
