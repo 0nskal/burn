@@ -180,7 +180,7 @@ const TEXT_SIZE: f32 = 12.5;
 const ICON: f32 = 14.0;
 const ICON_GAP: f32 = 5.0;
 const ENTRY_GAP: f32 = 12.0;
-/// Between a provider's windows, e.g. "97% · 53%".
+/// Between a provider's windows, e.g. "97% / 53%". A slash, since "·" already sets off the reset time.
 const SUB_GAP: f32 = 4.0;
 const PAD_X: f32 = 8.0;
 const HOVER_HEIGHT: f32 = 40.0;
@@ -251,7 +251,7 @@ impl Painter {
         let parts = entries
             .iter()
             .map(|e| {
-                let text = if e.logo { label(e) } else { format!("· {}", label(e)) };
+                let text = if e.logo { label(e) } else { format!("/ {}", label(e)) };
                 let layout = self.layout(&text, TEXT_SIZE, DWRITE_FONT_WEIGHT_MEDIUM, true)?;
                 let m = metrics(&layout)?;
                 Ok((e, layout, m))
