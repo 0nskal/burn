@@ -93,7 +93,8 @@
     if (combo && windows.some((w) => w.id === "5h") && windows.some((w) => w.id === "week")) {
       options.splice(1, 0, { id: "5h,week", label: "5h + Week" });
     }
-    if (combo && windows.length > 2) options.splice(1, 0, { id: "all", label: "All" });
+    // `all` leaves out minor caps, so offer it only when that still means more than two windows.
+    if (combo && windows.filter((w) => !w.minor).length > 2) options.splice(1, 0, { id: "all", label: "All" });
     return { value: options.some((o) => o.id === current) ? current : "highest", options };
   }
 

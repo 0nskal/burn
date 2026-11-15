@@ -169,6 +169,29 @@ pub fn pick_window<'a>(choice: &str, limits: &'a ProviderLimits) -> Option<&'a L
     limits.windows.iter().max_by(|a, b| a.percent.total_cmp(&b.percent))
 }
 
+/// Every window the widget shows for a setting like `5h`, `5h,week` or `all`. `all` leaves out minor caps,
+/// and an id inside a list that the provider no longer reports is skipped instead of replaced. Falls back
+/// to the most used window, so a provider with any window never drops out of the widget.
+pub fn pick_windows<'a>(choices: &[&str], limits: &'a ProviderLimits) -> Vec<&'a LimitWindow> {
+    let mut shown: Vec<&LimitWindow> = Vec::new();
+    for &choice in choices {
+        let picked: Vec<&LimitWindow> = match choice {
+            "all" => limits.windows.iter().filter(|w| !w.minor).collect(),
+            _ if choices.len() > 1 && choice != HIGHEST => limits.windows.iter().filter(|w| w.id == choice).collect(),
+            _ => pick_window(choice, limits).into_iter().collect(),
+        };
+        for w in picked {
+            if !shown.iter().any(|s| s.id == w.id) {
+                shown.push(w);
+            }
+        }
+    }
+    if shown.is_empty() {
+        shown.extend(pick_window(HIGHEST, limits));
+    }
+    shown
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -204,6 +227,25 @@ mod tests {
         assert_eq!(pick_window("5h", &l).unwrap().id, "5h");
         assert_eq!(pick_window(HIGHEST, &l).unwrap().id, "week");
         assert_eq!(pick_window("gone", &l).unwrap().id, "week");
+    }
+
+    #[test]
+    fn picks_several_windows() {
+        let mut fable = window("week_fable", 90.0);
+        fable.minor = true;
+        let l = ProviderLimits {
+            provider: ProviderId::Claude,
+            plan: None,
+            windows: vec![window("5h", 10.0), window("week", 60.0), fable],
+            fetched_at: 0,
+        };
+        let ids = |choices: &[&str]| pick_windows(choices, &l).iter().map(|w| w.id.as_str()).collect::<Vec<_>>();
+        assert_eq!(ids(&["5h", "week"]), ["5h", "week"]);
+        assert_eq!(ids(&["all"]), ["5h", "week"]);
+        assert_eq!(ids(&["5h", "gone"]), ["5h"]);
+        assert_eq!(ids(&["gone"]), ["week_fable"]);
+        assert_eq!(ids(&[]), ["week_fable"]);
+        assert_eq!(ids(&["gone", "lost"]), ["week_fable"]);
     }
 
     #[test]

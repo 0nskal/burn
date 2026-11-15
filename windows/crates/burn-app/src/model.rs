@@ -2,7 +2,7 @@
 //! as one `Snapshot` on every change; the taskbar widget gets its entries.
 
 use burn_core::database::UsageDatabase;
-use burn_core::settings::{Settings, pick_window};
+use burn_core::settings::{Settings, pick_windows};
 use burn_core::shelf::{Shelf, ShelfItem};
 use burn_core::{LimitsError, Paths, Period, ProviderId, ProviderLimits, UsageSummary, importer, limits};
 use serde::Serialize;
@@ -321,20 +321,8 @@ impl Model {
                 let Some(limits) = snap.limits.get(p).and_then(|l| l.limits()) else {
                     return Vec::new();
                 };
-                let mut shown: Vec<&burn_core::LimitWindow> = Vec::new();
-                for choice in snap.settings.widget_window_list(*p) {
-                    // `all`: every window the provider reports, in its own order.
-                    let picked: Vec<&burn_core::LimitWindow> = if choice == "all" {
-                        limits.windows.iter().collect()
-                    } else {
-                        pick_window(choice, limits).into_iter().collect()
-                    };
-                    for w in picked {
-                        if !shown.iter().any(|s| s.id == w.id) {
-                            shown.push(w);
-                        }
-                    }
-                }
+                let choices = snap.settings.widget_window_list(*p);
+                let shown = pick_windows(&choices, limits);
                 shown
                     .iter()
                     .enumerate()
